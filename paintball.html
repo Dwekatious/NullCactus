@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Null.io Paintball</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { overflow:hidden; background:#121418; color:#fff; font-family:Arial,sans-serif; }
+    canvas { display:block; position:absolute; top:0; left:0; }
+
+    header {
+      position:fixed; top:0; left:0; right:0; height:60px;
+      background:rgba(20,22,28,0.9);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 24px; backdrop-filter:blur(6px); cursor:pointer; z-index:60;
+    }
+    header:hover { background:rgba(20,22,28,1); }
+    .title { font-size:1.5rem; font-weight:bold; color:#4A90E2; }
+
+    #ui {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(20,22,28,0.9);
+      padding:24px 32px; border-radius:8px;
+      text-align:center; display:flex; flex-direction:column; gap:12px; z-index:55;
+    }
+    #ui input { padding:8px; width:200px; }
+    #ui button {
+      padding:10px 20px; background:#4A90E2;
+      border:none; border-radius:4px; cursor:pointer; color:#fff;
+    }
+    #ui button:hover { background:#357ABD; }
+
+    /* Leaderboard inside UI */
+    #leaderboard { text-align:left; }
+    #leaderboard h3 { margin:12px 0 4px; font-size:1rem; }
+    #leaderboard ul { list-style:none; padding:0; margin:0; max-height:120px; overflow:auto; }
+    #leaderboard li { padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
+    #healthBarContainer {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 16px;
+    }
+    #scoreboard {
+      position:fixed; top:80px; left:20px;
+      display:none; z-index:50;
+    }
+    #scoreboard div { margin:6px 0; font-size:0.9rem; }
+    .bar {
+      background:#333; border:1px solid #555; border-radius:4px;
+      width:200px; height:16px; overflow:hidden;
+    }
+    .bar-inner {
+      height:100%; background:#D0021B; transition:width .2s;
+    }
+
+    #gameOver {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(20,22,28,0.9);
+      padding:24px 32px; border-radius:8px;
+      text-align:center; display:none; z-index:70;
+    }
+    #gameOver button {
+      margin-top:16px; padding:10px 20px;
+      background:#4A90E2; border:none; border-radius:4px;
+      cursor:pointer; color:#fff;
+    }
+    #gameOver button:hover { background:#357ABD; }
+
+    /* ─── PANEL ───────────────────────────────────── */
+    #upgradePanel {
+      display: none;
+      position: fixed; top:80px; right:20px; width:260px;
+      background:rgba(18,20,24,0.9); border-radius:8px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.5);
+      color:#eee; font-family:Arial,sans-serif; z-index:1000; overflow:hidden;
+    }
+    #upgradePanel .panel-header {
+      background:#1F2128; padding:10px;
+      font-size:1rem; font-weight:bold; text-align:center;
+      border-bottom:1px solid #333;
+    }
+    #upgradePanel .panel-section {
+      padding:10px; border-bottom:1px solid #333;
+    }
+    #upgradePanel .section-title {
+      font-size:0.9rem; margin-bottom:6px; color:#ccc;
+    }
+    .upgrade-btn, .weapon-btn {
+      width:100%; margin:4px 0; padding:8px 0;
+      background:#2A2C33; border:1px solid #4A90E2; border-radius:4px;
+      font-size:0.9rem; color:#fff; cursor:pointer;
+      transition:background .2s, transform .1s;
+    }
+    .upgrade-btn:hover, .weapon-btn:hover {
+      background:#4A90E2; transform:translateY(-1px);
+    }
+    .upgrade-btn:active, .weapon-btn:active { transform:translateY(0); }
+
+/* ─── HEADER DROP-IN ANIMATION ─────────────────── */
+
+/* full-width flex container */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  background: rgba(20,22,28,0.9);
+  font-family: 'Montserrat', sans-serif;
+  z-index: 60;
+}
+
+.hud-group {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.hud-left  {
+  flex: 1;
+}
+/* make your right‐side group a flex row with adjustable gap */
+.hud-right {
+  display: flex;
+  align-items: center;
+  flex: 1;                /* pushes center group to stay centered */
+  justify-content: flex-end;
+  gap: 48px;              /* ← adjust this value for more or less space */
+}
+
+/* if you only want to move Score itself, instead of all right‐group items, use: */
+.hud-right .hud-item {
+  /* margin between Score and whatever is to its left */
+  margin-left: 50px;      /* ← tweak this as needed */
+}
+
+.hud-center {
+  flex: none;
+}
+
+.logo {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #4A90E2;
+}
+
+/* stat label + value */
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hud-item strong {
+  font-size: .85rem;
+  color: #4A90E2;
+}
+.hud-item .value {
+  font-size: 1.2rem;
+  color: #F5A623;
+  font-weight: 600;
+}
+
+/* center bar + text */
+.hp-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hp-container .bar {
+  width: 140px;
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hp-container .bar-inner {
+  width: 100%; /* updated by JS */
+  height: 100%;
+  background: #D0021B;
+  transition: width .2s;
+}
+.hp-container .hp-text {
+  font-size: 1rem;
+  color: #F5A623;
+  font-weight: 600;
+}
+
+
+
+
+
+
+/* Pulse on update */
+@keyframes pulse {
+  0%,100% { transform: scale(1); color: #F5A623; }
+  50%      { transform: scale(1.3); color: #FFF; }
+}
+.value.pop {
+  animation: pulse 0.3s ease-out;
+}
+
+
+
+body.late-phase {
+  background: #110101;    /* deep red background */
+  transition: background 1s ease;
+}
+
+
+
+  </style>
+</head>
+<body>
+<header id="mainHeader">
+  <div class="header-content">
+    
+<nav id="hud">
+  <div class="hud-group hud-left">
+    <div class="logo">Null Cactus</div>
+  </div>
+
+  <div class="hud-group hud-center">
+    <div class="hud-item">
+      <strong>Gold</strong>
+      <div class="value" id="gold">0</div>
+    </div>
+
+    <div class="hp-container">
+      <div class="bar">
+        <div class="bar-inner" id="healthBar"></div>
+      </div>
+      <div class="hp-text">
+        <span id="healthText">100</span>/<span id="maxHealthText">100</span>
+      </div>
+    </div>
+
+    <div class="hud-item">
+      <strong>Ammo</strong>
+      <div class="value">
+        <span id="ammo">0</span>/<span id="reserve">0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud-group hud-right">
+    <div class="hud-item">
+      <strong>Score</strong>
+      <div class="value" id="score">0</div>
+    </div>
+  </div>
+</nav>
+
+
+
+
+
+
+
+  </div>
+</header>
+
+
+
+  <div id="ui">
+    <h2>Enter Name</h2>
+    <input id="nameInput" placeholder="Player" maxlength="12" />
+    <button id="startBtn">Start Game</button>
+    <div id="leaderboard">
+      <h3>Leaderboard</h3>
+      <ul id="lbList"></ul>
+    </div>
+  </div>
+
+
+
+  <div id="gameOver">
+    <h2>Game Over</h2>
+    <div>Your Score: <span id="finalScore">0</span></div>
+    <button id="restartBtn">Restart</button>
+  </div>
+
+  <!-- Upgrade & Weapon Panel -->
+  <div id="upgradePanel">
+    <div class="panel-header">Upgrades &amp; Weapons</div>
+    <div class="panel-section">
+      <div class="section-title">Stats (Gold: <span id="upGold">0</span>)</div>
+      <button class="upgrade-btn" data-upgrade="health">+20 HP — 50 g</button>
+      <button class="upgrade-btn" data-upgrade="damage">+5 DMG — 75 g</button>
+      <button class="upgrade-btn" data-upgrade="magSize">+5 Mag — 60 g</button>
+      <button class="upgrade-btn" data-upgrade="fireRate">–10% FR — 100 g</button>
+    </div>
+    <div class="panel-section">
+      <div class="section-title">Weapons</div>
+      <button class="weapon-btn" data-weapon="buckshot">Buckshot — 100 g</button>
+      <button class="weapon-btn" data-weapon="minigun">Minigun — 200 g</button>
+      <button class="weapon-btn" data-weapon="sniper">Sniper — 300 g</button>
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <script>
+    let magSize = 30; // initial magazine size
+document.addEventListener('DOMContentLoaded', () => {
+  // ─── SHOP DATA & INITIAL STATE ──────────────────────
+  const upgrades = {
+    health:   { cost:5,  apply:() => { player.maxHealth +=20; player.health+=20; } },
+    damage:   { cost:7,  apply:() => { baseBulletDamage +=5; currentWeapon.damage += 5; } },
+    magSize:  { cost:6,  apply:() => { magSize +=5;  } },
+    fireRate: { cost:10, apply:() => {
+      currentWeapon.fireRate = Math.max(20, Math.floor(currentWeapon.fireRate * 0.9));
+    }}
+  };
+  const weapons = {
+    buckshot: { cost:10, damage:15, bullets:5, spread:0.3,  reload:800,  fireRate:300 },
+    minigun:  { cost:20, damage:5,  bullets:1, spread:0.15, reload:1500, fireRate:50  },
+    sniper:   { cost:30, damage:1000, bullets:1, spread:0,    reload:2000, fireRate:800 }
+  };
+
+
+// ─── ENEMY DATA  ─────────────────────────
+const enemyTypes = {
+  grunt:     { size:  40, health:  80, speed: 1.5, color: '#D0021B', weight: 40 },
+  runner:    { size:  30, health:  50, speed: 2.5, color: '#F5A623', weight: 30 },
+  tank:      { size: 100, health: 200, speed: 0.8, color: '#5555FF', weight: 15, armor: 20 },
+  sniper:    { size:  50, health:  60, speed: 1.2, color: '#00FF00', weight: 10, ranged: true },
+  bomber:    { size:  60, health: 100, speed: 1.0, color: '#FF6A00', weight:  8, explodeOnDeath: true },
+  healer:    { size:  45, health:  70, speed: 1.3, color: '#00C8FF', weight:  5, regen: 0.5 },
+  shadow:    { size:  35, health:  40, speed: 3.0, color: '#333333', weight:  3, stealth: true },
+
+  // ─── NEW TYPES ───────────────────────────────────
+  juggernaut: { size: 120, health: 300, speed: 0.6,  color: '#8B0000', weight:  4, armor: 50 },
+  assassin:   { size:  25, health:  45, speed: 3.5,  color: '#800080', weight:  5, critChance: 0.2 },
+  drone:      { size:  20, health:  30, speed: 2.8,  color: '#FFD700', weight:  8, fly: true },
+  spitter:    { size:  55, health:  80, speed: 1.1,  color: '#7FFF00', weight:  6, ranged: true, spitDamage: 10 },
+  shieldbearer:{ size:  70, health: 150, speed: 1.0, color: '#1E90FF', weight:  7, shield: 50 }
+};
+
+    let spawnStartTime;
+    const baseInterval = 5000;   // starting delay (ms)
+    const minInterval  = 200;    // fastest delay (ms)
+    const decayRate    = 0.0005; // larger → faster ramp-up
+
+
+
+
+
+
+
+  let baseBulletDamage = 30;
+  let maxReserve       = 90;
+  let currentWeapon    = { damage:30, bullets:1, spread:0, reload:1000, fireRate:300 };
+
+  // human-readable labels for each upgrade/weapon
+    const upgradeLabels = {
+    health:   "+20 HP",
+    damage:   "+5 DMG",
+    magSize:  "+5 Mag",
+    fireRate: "–10% FR"
+    };
+    const weaponLabels = {
+    buckshot: "Buckshot",
+    minigun:  "Minigun",
+    sniper:   "Sniper"
+    };
+
+    // update the upgrade buttons’ text to match your cost data
+    document.querySelectorAll('.upgrade-btn').forEach(btn => {
+    const key = btn.dataset.upgrade;
+    if (upgrades[key]) {
+        btn.textContent = `${upgradeLabels[key]} — ${upgrades[key].cost} g`;
+    }
+    });
+
+    // update the weapon buttons’ text to match your cost data
+    document.querySelectorAll('.weapon-btn').forEach(btn => {
+    const key = btn.dataset.weapon;
+    if (weapons[key]) {
+        btn.textContent = `${weaponLabels[key]} — ${weapons[key].cost} g`;
+    }
+    });
+
+
+  // ─── CORE GAME STATE ────────────────────────────────
+  const canvas = document.getElementById('game'),
+        ctx    = canvas.getContext('2d');
+  let w = canvas.width = innerWidth,
+      h = canvas.height= innerHeight;
+  const mapSize = 5000;
+  let viewX=0, viewY=0;
+  window.addEventListener('resize', () => {
+    w = canvas.width = innerWidth;
+    h = canvas.height= innerHeight;
+  });
+  
+  let player, keys={}, bullets=[], enemies=[], objects=[], pickups=[];
+  let score=0, reserve=90, gold=0;
+  let ammo=magSize, reloading=false, reloadStart=0, reloadDur=1000;
+  let gameStarted=false, enemyInterval, highs=[];
+
+  // ─── UI BINDINGS ──────────────────────────────────
+  document.getElementById('startBtn').onclick = () => {
+    localStorage.setItem('curName',
+      document.getElementById('nameInput').value.trim()||'Player');
+    loadHighs();
+    document.getElementById('ui').style.display='none';
+    initGame();
+  };
+  document.getElementById('restartBtn').onclick = () => location.reload();
+
+  // ─── SHOP PANEL HANDLERS ─────────────────────────
+  const panel = document.getElementById('upgradePanel'),
+        upGold= document.getElementById('upGold');
+
+  function refreshPanel() { upGold.textContent = gold; }
+
+  panel.addEventListener('click', e => {
+    const uKey = e.target.getAttribute('data-upgrade'),
+          wKey = e.target.getAttribute('data-weapon');
+    if(uKey && upgrades[uKey] && gold>=upgrades[uKey].cost) {
+      gold-=upgrades[uKey].cost;
+      upgrades[uKey].apply();
+      refreshPanel();
+    }
+    if(wKey && weapons[wKey] && gold>=weapons[wKey].cost) {
+      gold-=weapons[wKey].cost;
+      currentWeapon = { ...weapons[wKey] };
+      refreshPanel();
+    }
+  });
+
+  // ─── INIT & LOOP ─────────────────────────────────
+  function initGame() {
+    player = {
+      x:mapSize/2, y:mapSize/2, size:40, angle:0,
+      speed:4, health:100, maxHealth:100
+    };
+    score=gold=0; reserve=maxReserve=90; ammo=30; reloading=false;
+    baseBulletDamage=30;
+    currentWeapon = { damage:30, bullets:1, spread:0, reload:reloadDur, fireRate:300 };
+
+   
+    document.getElementById('upgradePanel').style.display='block';
+
+    initObjects();
+    bullets=[]; enemies=[]; pickups=[];
+    spawnStartTime = Date.now();
+    scheduleNextSpawn()
+    gameStarted=true;
+    updateUI();
+    
+    requestAnimationFrame(loop);
+  }
+
+  function initObjects() {
+    objects=[];
+    for(let i=0;i<50;i++){
+      let sz=80, x,y;
+      do {
+        x = Math.random()*(mapSize-sz)+sz/2;
+        y = Math.random()*(mapSize-sz)+sz/2;
+      } while(objects.some(o=>Math.hypot(o.x-x,o.y-y)<o.size+sz));
+      objects.push({ x,y,size:sz });
+    }
+  }
+
+ function spawnEnemy() {
+  const t = score / 50;
+    const typeOrder = [
+    'grunt','runner','tank','sniper',
+    'bomber','healer','shadow',
+    'juggernaut','assassin','drone',
+    'spitter','shieldbearer'
+  ];
+
+  // determine which tiers are unlocked
+  let maxTier = Math.min(Math.floor(t/2), typeOrder.length - 1);
+  const unlocked = typeOrder.slice(0, maxTier + 1);
+
+  // ─── NEW WEIGHTED PICK ────────────────────────────
+  // build a pool where each key appears `weight` times
+  let pool = [];
+  for (let key of unlocked) {
+    const w = enemyTypes[key].weight;
+    for (let i = 0; i < w; i++) pool.push(key);
+  }
+  // choose one at random
+  const typeKey = pool[Math.floor(Math.random() * pool.length)];
+
+  // fetch its stats
+  const def = enemyTypes[typeKey];
+  const x   = Math.random()*(mapSize - def.size) + def.size/2;
+  const y   = Math.random()*(mapSize - def.size) + def.size/2;
+
+  enemies.push({
+    x,
+    y,
+    size:      def.size,
+    health:    def.health,
+    maxHealth: def.health,
+    speed:     def.speed,
+    color:     def.color,
+    type:      typeKey
+  });
+}
+
+// total ramp duration (ms)
+const rampDuration   = 300_000;  // 5 min linear
+const latePhaseStart = rampDuration;
+const lateDecayRate  = 0.002;    // much steeper
+const lateMinInterval=  50;   
+let latePhaseTriggered = false;
+
+
+function scheduleNextSpawn() {
+  const elapsed = Date.now() - spawnStartTime;
+  let interval;
+
+  if (!latePhaseTriggered && elapsed >= rampDuration) {
+  latePhaseTriggered = true;
+  document.body.classList.add('late-phase');
+}
+
+
+  if (elapsed <= rampDuration) {
+    // 0–5 min: linear ramp from base → min
+    const t = elapsed / rampDuration;
+    interval   = baseInterval + t * (minInterval - baseInterval);
+  } else {
+    // after 5 min: exponential decay toward a tighter cap
+    const lateTime = elapsed - latePhaseStart;
+    interval = minInterval * Math.exp(-lateDecayRate * lateTime);
+    interval = Math.max(interval, lateMinInterval);
+  }
+
+  setTimeout(() => {
+    const count = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) spawnEnemy();
+    scheduleNextSpawn();
+  }, interval);
+}
+
+
+
+
+
+
+  // ─── INPUT ───────────────────────────────────────
+  document.addEventListener('keydown', e=> keys[e.key?.toLowerCase()]=true);
+  document.addEventListener('keyup',   e=> keys[e.key?.toLowerCase()]=false);
+  canvas.addEventListener('mousemove', e=>{
+    if(!player) return;
+    player.angle = Math.atan2(
+      e.clientY-(player.y-viewY),
+      e.clientX-(player.x-viewX)
+    );
+  });
+  canvas.addEventListener('mousedown', ()=>{
+    if(gameStarted && ammo>0 && !reloading) shoot();
+  });
+
+  // ─── SHOOT & RELOAD ─────────────────────────────
+  function shoot(){
+    const now = Date.now();
+    if(now - (player.lastShot||0) < currentWeapon.fireRate) return;
+    player.lastShot=now;
+    for(let i=0;i<currentWeapon.bullets;i++){
+      const ang = player.angle + (Math.random()-0.5)*currentWeapon.spread;
+      bullets.push({
+        x:player.x, y:player.y,
+        ang, spd:14, size:8,
+        damage:currentWeapon.damage
+      });
+    }
+    ammo--; updateUI();
+    if(ammo===0) startReload();
+  }
+  function startReload(){ reloading=true; reloadStart=Date.now(); }
+
+  // ─── UPDATE ─────────────────────────────────────
+  function update() {
+    if (!player) return;
+    // Movement
+    if (keys['w']) player.y -= player.speed;
+    if (keys['s']) player.y += player.speed;
+    if (keys['a']) player.x -= player.speed;
+    if (keys['d']) player.x += player.speed;
+
+    // Object collisions
+    objects.forEach(o => {
+      let dx = player.x-o.x, dy = player.y-o.y;
+      let dist = player.size/2 + o.size/2;
+      if (Math.hypot(dx,dy)<dist) {
+        let ang = Math.atan2(dy,dx);
+        player.x = o.x + Math.cos(ang)*dist;
+        player.y = o.y + Math.sin(ang)*dist;
+      }
+    });
+
+    // Bounds & camera
+    player.x = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.x));
+    player.y = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.y));
+    viewX = Math.max(0, Math.min(mapSize-w, player.x-w/2));
+    viewY = Math.max(0, Math.min(mapSize-h, player.y-h/2));
+
+    // Reload finish
+    if (reloading && Date.now()-reloadStart>=reloadDur) {
+      reloading=false;
+      let take = Math.min(magSize, reserve);
+      reserve-=take; ammo=take; updateUI();
+    }
+    // ── Enemy movement ──
+    enemies.forEach(e => {
+    // move toward player
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x += Math.cos(ang) * e.speed;
+    e.y += Math.sin(ang) * e.speed;
+    });
+
+
+    // Bullets → enemies
+    bullets.forEach((b,i) => {
+    b.x += Math.cos(b.ang)*b.spd;
+    b.y += Math.sin(b.ang)*b.spd;
+    if (b.x<0||b.x>mapSize||b.y<0||b.y>mapSize) return bullets.splice(i,1);
+
+    enemies.forEach((e,j) => {
+        if (Math.hypot(b.x-e.x,b.y-e.y) < b.size+e.size/2) {
+        e.health -= b.damage;
+        bullets.splice(i,1);
+        if (e.health <= 0) {
+            score += 10;
+
+            // —— NEW: weighted drop logic ——
+            let r = Math.random();
+            let type = null;
+            if (r < 0.50) {
+            type = null;             // 50% no drop
+            } else if (r < 0.80) {
+            type = 'gold';           // next 30%
+            } else if (r < 0.95) {
+            type = 'ammo';           // next 15%
+            } else {
+            type = 'health';         // last 5%
+            }
+
+            if (type) {
+            let val = type === 'ammo'
+                    ? 100
+                    : type === 'health'
+                    ? 30
+                    : (e.size > 60 ? 10 : e.size > 40 ? 5 : 2);
+            pickups.push({ x: e.x, y: e.y, size: 20, type, value: val });
+            }
+            // — end new logic —
+
+            enemies.splice(j,1);
+        }
+        }
+    });
+    });
+
+
+    // Pickups & enemy contact
+    pickups.forEach((p,i)=>{
+      if (Math.hypot(player.x-p.x,player.y-p.y)<player.size/2+p.size/2) {
+        if (p.type==='ammo')    reserve+=p.value;
+        if (p.type==='health')  player.health = Math.min(player.maxHealth, player.health+p.value);
+        if (p.type==='gold')    gold+=p.value;
+        pickups.splice(i,1);
+      }
+    });
+    enemies.forEach(e=>{
+      if (Math.hypot(player.x-e.x,player.y-e.y)<player.size/2+e.size/2) player.health--;
+    });
+
+    // Death
+    if (player.health<=0) {
+      clearInterval(enemyInterval);
+      gameStarted=false;
+      document.getElementById('finalScore').textContent=score;
+      document.getElementById('gameOver').style.display='block';
+      document.getElementById('upgradePanel').style.display='none';
+      saveHigh(score);
+    }
+
+    updateUI();
+  }
+
+  // ─── DRAW ───────────────────────────────────────
+  function draw() {
+    if (!player) return;
+    if (latePhaseTriggered) {
+    ctx.fillStyle = '#440000';   // deep red for late phase  
+    } else {
+    ctx.fillStyle = '#121418';   // your normal dark background  
+    }
+    ctx.fillRect(0, 0, w, h);
+
+    // Grid
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    for(let x=-viewX%50;x<w;x+=50){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+    for(let y=-viewY%50;y<h;y+=50){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+
+    // Objects
+    ctx.fillStyle='#2A2C33';
+    objects.forEach(o=>{
+      ctx.fillRect(o.x-viewX-o.size/2, o.y-viewY-o.size/2, o.size, o.size);
+    });
+
+    // Player
+    let px=player.x-viewX, py=player.y-viewY;
+    ctx.save(); ctx.translate(px,py); ctx.rotate(player.angle);
+    ctx.fillStyle='#4A90E2';
+    ctx.fillRect(-player.size/2,-player.size/2,player.size,player.size);
+    ctx.restore();
+
+    // Reload bar
+    if (reloading) {
+      let pct = Math.min((Date.now()-reloadStart)/reloadDur,1);
+      ctx.fillStyle='#FFF';
+      ctx.fillRect(px-50,py-player.size-10,100*pct,6);
+    }
+
+    // Bullets
+    ctx.fillStyle='#F5A623';
+    bullets.forEach(b=>{
+      ctx.fillRect(b.x-viewX-b.size/2,b.y-viewY-b.size/2,b.size,b.size);
+    });
+
+ 
+    // Enemies
+    enemies.forEach(e => {
+    let ex = e.x - viewX,
+        ey = e.y - viewY;
+
+    // paint using the enemy's color:
+    ctx.fillStyle = e.color;
+    ctx.fillRect(ex - e.size/2, ey - e.size/2, e.size, e.size);
+
+    // health bar:
+    let pct = e.health / e.maxHealth;
+    ctx.fillStyle = '#555';
+    ctx.fillRect(ex - e.size/2, ey - e.size/2 - 8, e.size, 6);
+    ctx.fillStyle = '#0F0';
+    ctx.fillRect(ex - e.size/2, ey - e.size/2 - 8, e.size * pct, 6);
+    });
+
+
+    // Pickups
+    pickups.forEach(p=>{
+      let x=p.x-viewX, y=p.y-viewY;
+      ctx.fillStyle = p.type==='ammo'? '#F5A623' : p.type==='health'? '#0F0' : '#FFD700';
+      ctx.fillRect(x-p.size/2,y-p.size/2,p.size,p.size);
+    });
+  }
+
+  function loop(){
+    if(!gameStarted) return;
+    update(); draw(); requestAnimationFrame(loop);
+  }
+
+  // ─── UI UPDATES ─────────────────────────────────
+    function pop(id) {
+    const el = document.getElementById(id);
+    el.classList.add('pop');
+    setTimeout(() => el.classList.remove('pop'), 150);
+    }
+// Pulse helper: accepts an Element
+function pop(el) {
+  if (!el) return;
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 300);
+}
+
+function updateUI() {
+  // Score
+  const scoreEl = document.getElementById('score');
+  if (scoreEl) {
+    scoreEl.textContent = score;
+    pop(scoreEl);
+  }
+
+  // Gold
+  const goldEl = document.getElementById('gold');
+  if (goldEl) {
+    goldEl.textContent = gold;
+    pop(goldEl);
+  }
+
+  // Ammo / Reserve
+  const ammoEl = document.getElementById('ammo');
+  if (ammoEl) {
+    ammoEl.textContent = ammo;
+    pop(ammoEl);
+  }
+  const resEl = document.getElementById('reserve');
+  if (resEl) {
+    resEl.textContent = reserve;
+    pop(resEl);
+  }
+
+  // Health text
+  const hpEl = document.getElementById('healthText');
+  if (hpEl) {
+    hpEl.textContent = Math.floor(player.health);
+    pop(hpEl);
+  }
+  const maxHpEl = document.getElementById('maxHealthText');
+  if (maxHpEl) {
+    maxHpEl.textContent = player.maxHealth;
+    pop(maxHpEl);
+  }
+
+  // Health bar
+    const bar = document.getElementById('healthBar');
+    if (bar) bar.style.width = (player.health/player.maxHealth*100) + '%';
+    pop(document.getElementById('healthText'));
+    pop(document.getElementById('maxHealthText'));
+
+  // Damage
+  const dmgEl = document.getElementById('damageText');
+  if (dmgEl) {
+    dmgEl.textContent = currentWeapon.damage;
+    pop(dmgEl);
+  }
+
+  // Fire-rate in SPS
+  const frEl = document.getElementById('fireRateText');
+  if (frEl) {
+    const sps = (1000 / currentWeapon.fireRate).toFixed(2);
+    frEl.textContent = sps;
+    pop(frEl);
+  }
+
+  // Upgrade panel gold (if present)
+  refreshPanel();
+}
+
+
+// Helper: trigger pulse on an element
+function pop(el) {
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 300);
+}
+
+
+
+
+  // ─── HIGHSCORE STORAGE ───────────────────────────
+  function saveHigh(sc){
+    highs=JSON.parse(localStorage.getItem('hs')||'[]');
+    highs.push({ name:localStorage.getItem('curName'), score:sc });
+    highs.sort((a,b)=>b.score-a.score);
+    localStorage.setItem('hs',JSON.stringify(highs));
+    renderLeader();
+  }
+  function loadHighs(){
+    highs=JSON.parse(localStorage.getItem('hs')||'[]');
+    renderLeader();
+  }
+  function renderLeader(){
+    const ul=document.getElementById('lbList');
+    ul.innerHTML='';
+    highs.slice(0,10).forEach(h=>{
+      const li=document.createElement('li');
+      li.textContent=`${h.name}: ${h.score}`;
+      ul.appendChild(li);
+    });
+  }
+
+  // initial leaderboard
+  loadHighs();
+});
+</script>
+
+</body>
+</html>

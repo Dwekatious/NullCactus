@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Null Cactus Software Solutions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html { scroll-behavior: smooth; }
+    :root {
+      --clr-primary: #1E3A8A;
+      --clr-secondary: #4B5563;
+      --clr-bg: #111827;
+      --clr-card: #1F2937;
+      --clr-text: #E5E7EB;
+    }
+  </style>
+</head>
+<body class="bg-[var(--clr-bg)] text-[var(--clr-text)] font-sans antialiased">
+
+  <!-- NAV -->
+  <header class="fixed w-full z-50 bg-[var(--clr-bg)] shadow-md">
+    <nav class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+      <a href="#" class="text-xl font-bold text-[var(--clr-primary)]">Null Cactus</a>
+      <ul class="hidden md:flex space-x-6 text-sm">
+        <li><a href="#features" class="hover:text-[var(--clr-primary)]">Features</a></li>
+        <li><a href="#showcase" class="hover:text-[var(--clr-primary)]">Showcase</a></li>
+        <li><a href="#contact" class="hover:text-[var(--clr-primary)]">Contact</a></li>
+      </ul>
+      <button class="md:hidden" onclick="document.getElementById('menu').classList.toggle('hidden')">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </nav>
+    <div id="menu" class="hidden md:hidden bg-[var(--clr-bg)]">
+      <a href="#features" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Features</a>
+      <a href="#showcase" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Showcase</a>
+      <a href="#contact" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Contact</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="pt-20 bg-gradient-to-br from-[var(--clr-primary)] to-[var(--clr-secondary)]">
+    <div class="max-w-6xl mx-auto px-4 py-32 text-center">
+      <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">NullCactus Studios</h1>
+      <p class="text-lg text-gray-200 mb-8">Crafting simple yet fun games.</p>
+      <a href="about.html" class="inline-block bg-white text-[var(--clr-primary)] font-semibold py-3 px-6 rounded-full shadow hover:opacity-90 transition">Learn More</a>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+ <!-- <section id="features" class="py-20">
+    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 5a2 2 0 012-2h4l2 2h4a2 2 0 012 2v2H2V5z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Custom Software</h3>
+        <p class="text-gray-300">Tailored solutions that fit your business needs perfectly.</p>
+      </div>
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 5h12v2H4V5zM4 9h12v2H4V9zM4 13h12v2H4v-2z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">UI/UX Design</h3>
+        <p class="text-gray-300">Engaging interfaces for maximum user satisfaction.</p>
+      </div>
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a1 1 0 011 1v7h7a1 1 0 110 2h-7v7a1 1 0 11-2 0v-7H2a1 1 0 110-2h7V3a1 1 0 011-1z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Consulting</h3>
+        <p class="text-gray-300">Expert guidance to streamline your tech strategy.</p>
+      </div>
+    </div>
+  </section> -->
+
+  <!-- SHOWCASE -->
+    <!-- SHOWCASE -->
+  <section id="showcase" class="py-20 bg-[var(--clr-bg)]">
+    <div class="max-w-6xl mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center mb-12">Our list of games, more to come!</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="null_io_bg.png" alt="Demo 1" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Null.io</h4>
+            <p class="text-gray-300 mb-4">Eat the food, grow bigger!</p>
+            <a href="nullio.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Null.io →</a>
+          </div>
+        </div>
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="paintball.png" alt="Demo 2" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Shoot'em All!</h4>
+            <p class="text-gray-300 mb-4">The 5 minute pit of hell.</p>
+            <a href="paintball.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Box Shooter →</a>
+          </div>
+        </div>
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="physics.png" alt="Demo 3" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Physics simulation!</h4>
+            <p class="text-gray-300 mb-4">Enjoy an almost hypnotic physics simulation.</p>
+            <a href="physics.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Physics →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="py-20">
+    <div class="max-w-4xl mx-auto px-4 text-center">
+      <h2 class="text-3xl font-bold mb-6">Get In Touch</h2>
+      <form class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <input type="text" placeholder="Your Name" class="p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required>
+        <input type="email" placeholder="Your Email" class="p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required>
+        <textarea placeholder="Your Message" rows="4" class="sm:col-span-2 p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required></textarea>
+        <button type="submit" class="sm:col-span-2 bg-[var(--clr-primary)] text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Send Message</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-[var(--clr-card)] py-6 text-center text-sm text-gray-400">
+    <div class="max-w-6xl mx-auto px-4">
+      © 2025 Null Cactus Software Solutions. All rights reserved.
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Physics Game - Null Cactus</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+    body, html { margin:0; padding:0; overflow:hidden; background:#1a1f36; color:#fff; font-family:'Montserrat',sans-serif; }
+    #header { position:fixed; top:0; left:0; right:0; height:50px; background:#2c3150; display:flex; align-items:center; justify-content:space-between; padding:0 20px; box-shadow:0 2px 6px rgba(0,0,0,0.5); z-index:10; }
+    #header .logo { font-size:1.3rem; font-weight:600; color:#4A90E2; }
+    #header .back { background:#4A90E2; border:none; color:#fff; padding:6px 12px; border-radius:4px; cursor:pointer; transition:background .2s; font-weight:600; }
+    #header .back:hover { background:#357ABD; }
+    #header .info { display:flex; gap:16px; font-size:1rem; }
+    #header .info .label { font-weight:600; color:#F5A623; }
+    #game-container { position:absolute; top:50px; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; }
+    #game { background:#111; border:2px solid #2c3150; border-radius:50%; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div class="logo">Null Cactus</div>
+    <div class="info">
+      <div><span class="label">Touches:</span> <span id="touchCount" style="font-size:1.2rem;">0</span></div>
+    </div>
+    <button class="back" onclick="location.href='index.html'">Back</button>
+  </div>
+  <div id="game-container">
+    <canvas id="game" width="600" height="600"></canvas>
+  </div>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width;
+    const center = size / 2;
+    const boundaryR = center - 10;
+    let touchCount = 0;
+    const balls = [];
+    const trails = [];
+
+    function drawBoundary() {
+      ctx.strokeStyle = '#4A90E2';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(center, center, boundaryR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    function update() {
+      balls.forEach((ball) => {
+        ball.hue = (ball.hue + 0.1) % 360;
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+        trails.push({ x: ball.x, y: ball.y, r: ball.r, hue: ball.hue, alpha: 1 });
+        const dx = ball.x - center;
+        const dy = ball.y - center;
+        const dist = Math.hypot(dx, dy);
+        if (dist + ball.r >= boundaryR) {
+          touchCount++;
+          document.getElementById('touchCount').textContent = touchCount;
+          ball.r += 2;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const dot = ball.vx * nx + ball.vy * ny;
+          ball.vx = (ball.vx - 2 * dot * nx) * 1.0005;
+          ball.vy = (ball.vy - 2 * dot * ny) * 1.0005;
+          const overlap = dist + ball.r - boundaryR;
+          ball.x -= nx * overlap;
+          ball.y -= ny * overlap;
+        }
+      });
+      for (let i = trails.length - 1; i >= 0; i--) {
+        trails[i].alpha -= 0.03;
+        if (trails[i].alpha <= 0) trails.splice(i, 1);
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, size, size);
+      drawBoundary();
+      trails.forEach((t) => {
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'hsla(' + t.hue + ',80%,60%,' + t.alpha + ')';
+        ctx.fill();
+      });
+      balls.forEach((ball) => {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'hsl(' + ball.hue + ',80%,60%)';
+        ctx.fill();
+      });
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      balls.push({ x, y, r: 8, hue: Math.random() * 360, vx: 0, vy: -4 });
+    });
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>About the Developer | NullCactus Studios</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Box sizing to include padding in width calculations */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --primary: #3b5998;
+      --accent: #8b9dc3;
+      --bg: #2c3e50;
+      --card-bg: rgba(255,255,255,0.05);
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, var(--bg), #34495e);
+      color: #ecf0f1;
+      overflow-x: hidden;
+    }
+    header {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(44,62,80,0.8);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    a.logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    nav a {
+      margin-left: 1.5rem;
+      color: #ecf0f1;
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    nav a:hover {
+      color: var(--accent);
+    }
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      height: 60vh;
+      padding: 0 1rem;
+      background: linear-gradient(180deg, rgba(44,62,80,0.8), rgba(44,62,80,0.4));
+      margin-top: 80px; /* offset for fixed header */
+    }
+    .hero h1 {
+      font-size: 3rem;
+      margin: 0;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      margin: 1rem 0;
+    }
+    .button {
+      padding: 0.75rem 1.5rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 25px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    .button:hover {
+      background: #a3b0cf;
+    }
+    .card-container {
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 15px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+      max-width: 500px;
+      text-align: center;
+    }
+    .card img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 3px solid var(--accent);
+      transition: transform 0.3s;
+    }
+    .card img:hover {
+      transform: scale(1.05);
+    }
+    .card h2 {
+      margin: 1rem 0 0.5rem;
+      color: var(--accent);
+    }
+    .card p {
+      margin: 0.75rem 0;
+      line-height: 1.5;
+    }
+    .social a {
+      margin: 0 0.5rem;
+      color: #ecf0f1;
+      transition: color 0.3s;
+    }
+    .social a:hover {
+      color: var(--accent);
+    }
+    .fade-in {
+      opacity: 0;
+      animation: fadeIn 1s forwards;
+    }
+    .fade-in.delay-1 {
+      animation-delay: 0.3s;
+    }
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header class="fade-in">
+    <div class="container">
+      <a href="index.html" class="logo">NullCactus</a>
+      <nav>
+        <a href="index.html">Features</a>
+        <a href="index.html">Showcase</a>
+        <a href="index.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero fade-in delay-1">
+    <h1>About the Developer</h1>
+    <p>Crafting simple yet engaging games.</p>
+    <a href="index.html" class="button">Back to Home</a>
+  </section>
+
+  <main>
+    <div class="card-container fade-in delay-1">
+      <div class="card">
+        <img src="nullcactus.png" alt="Mohanad" />
+        <h2>Mohanad</h2>
+        <p>Computer Engineering student who has a passion for anything about computers.</p>
+        <p>This site showcases my fun little projects, and allows me to share them with the world.</p>
+        <p>I will keep adding and improving the site and the games, feel free to contact me at nullcactus4life@gmail.com.</p>
+        <div class="social">
+          <a href="#" aria-label="GitHub"><i class="fab fa-github fa-lg"></i></a>
+          <a href="#" aria-label="Twitter"><i class="fab fa-twitter fa-lg"></i></a>
+          <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin fa-lg"></i></a>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
