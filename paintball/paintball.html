@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-YX167KL6Q1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-YX167KL6Q1');
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Null.io Paintball</title>
+  <link rel="stylesheet" href="paintball.css">
+</head>
+<body>
+  <header id="mainHeader">
+    <nav id="hud">
+      <div class="hud-group hud-left">
+        <a href="../index.html"><div class="logo">NullCactus</div></a>
+      </div>
+      <div class="hud-group hud-center">
+        <div class="hud-item">
+          <strong>Gold</strong>
+          <div class="value" id="gold">0</div>
+        </div>
+        <div class="hp-container">
+          <div class="bar">
+            <div class="bar-inner" id="healthBar"></div>
+          </div>
+          <div class="hp-text">
+            <span id="healthText">100</span>/<span id="maxHealthText">100</span>
+          </div>
+        </div>
+        <div class="hud-item">
+          <strong>Ammo</strong>
+          <div class="value">
+            <span id="ammo">0</span>/<span id="reserve">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="hud-group hud-right">
+        <div class="hud-item">
+          <strong>Score</strong>
+          <div class="value" id="score">0</div>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <div id="ui">
+    <h2>Enter Name</h2>
+    <input id="nameInput" placeholder="Player" maxlength="12" />
+    <button id="startBtn">Start Game</button>
+    <div id="leaderboard">
+      <h3>Leaderboard</h3>
+      <ul id="lbList"></ul>
+    </div>
+  </div>
+
+  <div id="gameOver">
+    <h2>Game Over</h2>
+    <div>Your Score: <span id="finalScore">0</span></div>
+    <button id="restartBtn">Restart</button>
+  </div>
+
+  <div id="upgradePanel">
+    <div class="panel-header">Upgrades &amp; Weapons</div>
+    <div class="panel-section">
+      <div class="section-title">Stats (Gold: <span id="upGold">0</span>)</div>
+      <button class="upgrade-btn" data-upgrade="health">+20 HP — 5 g</button>
+      <button class="upgrade-btn" data-upgrade="damage">+5 DMG — 7 g</button>
+      <button class="upgrade-btn" data-upgrade="magSize">+5 Mag — 6 g</button>
+      <button class="upgrade-btn" data-upgrade="fireRate">–10% FR — 10 g</button>
+    </div>
+    <div class="panel-section">
+      <div class="section-title">Weapons</div>
+      <button class="weapon-btn" data-weapon="buckshot">Buckshot — 10 g</button>
+      <button class="weapon-btn" data-weapon="minigun">Minigun — 20 g</button>
+      <button class="weapon-btn" data-weapon="sniper">Sniper — 30 g</button>
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+  <script src="paintball.js"></script>
+</body>
+</html>

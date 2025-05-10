@@ -1,0 +1,315 @@
+/* paintball.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: #121418;
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Header & HUD */
+header,
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: rgba(20, 22, 28, 0.9);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  backdrop-filter: blur(6px);
+  z-index: 60;
+}
+
+header:hover,
+#hud:hover {
+  background: rgba(20, 22, 28, 1);
+}
+
+.logo {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #4A90E2;
+}
+
+.hud-group {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+}
+
+.hud-left {
+  flex: 1;
+}
+
+.hud-center {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.hud-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 48px;
+}
+
+.hud-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hud-item strong {
+  font-size: .85rem;
+  color: #4A90E2;
+}
+
+.hud-item .value {
+  font-size: 1.2rem;
+  color: #F5A623;
+  font-weight: 600;
+}
+
+.hp-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hp-container .bar {
+  width: 140px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hp-container .bar-inner {
+  width: 100%;
+  height: 100%;
+  background: #D0021B;
+  transition: width .2s;
+}
+
+.hp-text {
+  font-size: 1rem;
+  color: #F5A623;
+  font-weight: 600;
+}
+
+/* UI Panels */
+#ui,
+#gameOver,
+#upgradePanel {
+  position: fixed;
+  background: rgba(20, 22, 28, 0.9);
+  padding: 24px 32px;
+  border-radius: 8px;
+  text-align: center;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* START‐GAME PANEL */
+#ui {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  /* increase overall size by 50% */
+  width: 360px;            /* e.g. from ~240px → 360px */
+  padding: 36px 48px;      /* 24px→36px, 32px→48px */
+  background: rgba(20, 22, 28, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+  z-index: 55;
+}
+
+/* Match input background to panel and refine style */
+#ui input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(20, 22, 28, 0.8);
+  border: 1px solid #4A90E2;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 1rem;
+}
+
+#ui input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+#ui input:focus {
+  outline: none;
+  border-color: #357ABD;
+  background: rgba(20, 22, 28, 1);
+}
+
+/* Restyle the Start button */
+#ui button {
+  width: 100%;
+  padding: 12px;
+  background: #4A90E2;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+#ui button:hover {
+  background: #357ABD;
+}
+
+
+#leaderboard {
+  text-align: left;
+}
+
+#leaderboard ul {
+  list-style: none;
+  max-height: 120px;
+  overflow: auto;
+}
+
+#leaderboard li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* GAME OVER PANEL (hidden by default) */
+/* GAME OVER PANEL */
+#gameOver {
+  position: flex;
+  display: flex;
+ 
+
+  top: 50%;
+  left: 50%;
+  height: 150px;
+  width: 300px;
+  padding: 24px;
+  background: #1F2128;
+  border: 1px solid #333842;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  display: none; /* remain hidden until game over */
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+  color: #ECECEC;
+  z-index: 100;
+  opacity: 0;
+  animation: fadeIn 0.3s forwards ease-out;
+}
+
+/* GAME OVER BUTTON */
+#gameOver button {
+  width: 100%;
+  padding: 12px;
+  background: #4A90E2;
+  border: none;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 1s ease, transform 0.1s ease;
+  gap: 4px;
+}
+
+#gameOver button:hover {
+  background: #357ABD;
+  transform: translateY(-1px);
+}
+
+#gameOver button:active {
+  transform: translateY(0);
+}
+
+/* FADE-IN ANIMATION */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+
+#upgradePanel {
+  top: 80px;
+  right: 20px;
+  width: 260px;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.upgrade-btn,
+.weapon-btn {
+  width: 100%;
+  margin: 4px 0;
+  padding: 8px 0;
+  background: #2A2C33;
+  border: 1px solid #4A90E2;
+  border-radius: 4px;
+  font-size: .9rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background .2s, transform .1s;
+}
+
+.upgrade-btn:hover,
+.weapon-btn:hover {
+  background: #4A90E2;
+  transform: translateY(-1px);
+}
+
+.upgrade-btn:active,
+.weapon-btn:active {
+  transform: translateY(0);
+}
+
+/* Late phase background */
+body.late-phase {
+  background: #120101;
+  transition: background 1s ease;
+}
+
+/* Utility */
+.pop {
+  animation: pulse 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+a {
+  text-decoration: none;
+}
