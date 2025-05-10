@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Null.io - Expandable Arena</title>
+  <style>
+    #scoreBoard {
+    position: fixed;
+    top: 72px;       /* just below the header */
+    left: 16px;
+    color: #E5E7EB;
+    font-family: sans-serif;
+    font-size: 18px;
+    z-index: 21;
+    background: rgba(17,24,39,0.6);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; background: #0b1e3a; }
+    #bgCanvas, #game { display: block; position: absolute; top: 0; left: 0; }
+    header, #ui { position: fixed; left: 0; right: 0; z-index: 20; }
+    #scoreBoard { display: none; }
+
+    header { top: 0; height: 64px; background: rgba(17,24,39,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    header div { cursor: pointer; font-family: 'Segoe UI', sans-serif; color: #FFF; font-size: 1.5rem; font-weight: bold; }
+    header button { background: #374151; color: #E5E7EB; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    #ui { top: 50%; left: 50%; width: 360px; max-width: 90vw; transform: translate(-50%, -50%); background: rgba(31,41,55,0.6); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 24px 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    #ui label { width: 100%; display: flex; justify-content: space-between; font-family: 'Segoe UI', sans-serif; color: #E5E7EB; font-size: 0.9rem; }
+    #ui input, #ui button { height: 40px; }
+    #ui input[type="text"], #ui input[type="color"] { width: 60%; text-align: center; border: none; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.1); }
+    #ui button { background: #6366F1; color: #FFF; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; min-width: 140px; }
+  </style>
+</head>
+<body>
+  <canvas id="bgCanvas"></canvas>
+  <header>
+    <div id="scoreBoard">Score: 0</div>
+
+    <div onclick="location.href='index.html'">Null.io</div>
+    <button onclick="location.href='index.html'">Quit</button>
+  </header>
+  <div id="ui">
+    <label>Name:<input id="nameInput" type="text" placeholder="Player"></label>
+    <label>Color:<input id="colorInput" type="color" value="#1E3A8A"></label>
+    <button id="startBtn">Start Game</button>
+  </div>
+  <canvas id="game"></canvas>
+  <script>
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const gameCanvas = document.getElementById('game');
+    const gameCtx = gameCanvas.getContext('2d');
+    let boxes = [];
+    let bgRunning = true;
+
+    function resize() {
+      bgCanvas.width = gameCanvas.width = window.innerWidth;
+      bgCanvas.height = gameCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    for (let i = 0; i < 50; i++) {
+      boxes.push({
+        x: Math.random() * bgCanvas.width,
+        y: Math.random() * bgCanvas.height,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        size: 20 + Math.random() * 30,
+        angle: Math.random() * Math.PI * 2,
+        color: ['#374151', '#4B5563', '#1F2937'][Math.floor(Math.random() * 3)]
+      });
+    }
+
+    function updateBg() {
+      for (const b of boxes) {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < -b.size) b.x = bgCanvas.width + b.size;
+        if (b.x > bgCanvas.width + b.size) b.x = -b.size;
+        if (b.y < -b.size) b.y = bgCanvas.height + b.size;
+        if (b.y > bgCanvas.height + b.size) b.y = -b.size;
+        b.angle += 0.02;
+      }
+    }
+
+    function drawBg() {
+      bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+      const spacing = 100;
+      bgCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+      bgCtx.lineWidth = 1;
+      for (let x = 0; x < bgCanvas.width; x += spacing) {
+        bgCtx.beginPath(); bgCtx.moveTo(x + 0.5, 0); bgCtx.lineTo(x + 0.5, bgCanvas.height); bgCtx.stroke();
+      }
+      for (let y = 0; y < bgCanvas.height; y += spacing) {
+        bgCtx.beginPath(); bgCtx.moveTo(0, y + 0.5); bgCtx.lineTo(bgCanvas.width, y + 0.5); bgCtx.stroke();
+      }
+      for (const b of boxes) {
+        bgCtx.save();
+        bgCtx.translate(b.x, b.y);
+        bgCtx.rotate(b.angle);
+        bgCtx.fillStyle = b.color;
+        bgCtx.fillRect(-b.size/2, -b.size/2, b.size, b.size);
+        bgCtx.restore();
+      }
+    }
+
+    function loopBg() {
+      if (!bgRunning) return;
+      updateBg(); drawBg(); requestAnimationFrame(loopBg);
+    }
+    loopBg();
+
+
+
+
+    // ... existing game loop and logic here ...
+  </script>
+</body>
+</html>
+
+  <script>
+    // ── CONFIGURATION ──
+    const MAX_FOOD = 50000;             // total food cap
+    const SPAWN_PER_FRAME = 1;        // items spawned when triggered        // items spawned when triggered
+    const SPAWN_EVERY_N_FRAMES = 5;     // spawn every N frames     // spawn every N frames
+
+
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    let mapSize = 300000;
+    let viewX = 0, viewY = 0;
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Entity {
+      constructor(x, y, size, color) {
+        this.x = x; this.y = y; this.size = size; this.color = color;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x - viewX, this.y - viewY, this.size, 0, 2 * Math.PI);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    let gameStarted = false;
+    let frameCount = 0;
+
+    const player = {
+      x: mapSize / 2,
+      y: mapSize / 2,
+      size: 20,
+      color: '#1E3A8A',
+      name: 'Player',
+      vx: 0,
+      vy: 0,
+      baseSpeed: 4,
+      minSpeed: 0.5
+    };
+
+    let food = [];
+    let score = 10;
+
+    let mouseX = canvas.width / 2, mouseY = canvas.height / 2;
+    let moveAngle = 0;
+
+    canvas.addEventListener('mousemove', e => {
+      if (!gameStarted) return;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      const dx = mouseX - canvas.width / 2;
+      const dy = mouseY - canvas.height / 2;
+      moveAngle = Math.atan2(dy, dx);
+    });
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+        // read inputs
+        const nameVal = document.getElementById('nameInput').value.trim();
+        if (nameVal) player.name = nameVal;
+        player.color = document.getElementById('colorInput').value;
+
+        // hide the UI panel and background
+        document.getElementById('ui').style.display = 'none';
+        bgRunning = false;
+        document.getElementById('bgCanvas').style.display = 'none';
+
+        // show the score counter
+        document.getElementById('scoreBoard').style.display = 'block';
+
+        // start the game
+        gameStarted = true;
+        requestAnimationFrame(loop);
+    });
+
+
+    function spawnFood() {
+      if (frameCount % SPAWN_EVERY_N_FRAMES !== 0) return;
+      for (let i = 0; i < SPAWN_PER_FRAME && food.length < MAX_FOOD; i++) {
+        const size = 5;
+        const x = viewX + Math.random() * canvas.width;
+        const y = viewY + Math.random() * canvas.height;
+        const colors = ['#EC4899', '#FBBF24', '#10B981', '#3B82F6', '#8B5CF6'];
+        food.push(new Entity(x, y, size, colors[Math.floor(Math.random() * colors.length)]));
+      }
+    }
+
+    setInterval(() => {
+      if (!gameStarted) return;
+      if (score > 30) score -= score * 0.01;
+    }, 2000);
+
+    function update() {
+      frameCount++;
+      spawnFood();
+
+      const screenX = canvas.width / 2;
+      const screenY = canvas.height / 2;
+      const mdx = mouseX - screenX;
+      const mdy = mouseY - screenY;
+      const dist = Math.hypot(mdx, mdy);
+
+      let desiredVx = 0, desiredVy = 0;
+      if (dist > player.size) {
+        // slower decay curve
+        let speed = player.baseSpeed * Math.pow(20 / player.size, 0.3);
+        speed = Math.max(player.minSpeed, speed);
+        desiredVx = Math.cos(moveAngle) * speed;
+        desiredVy = Math.sin(moveAngle) * speed;
+      }
+
+      player.vx += (desiredVx - player.vx) * 0.1;
+      player.vy += (desiredVy - player.vy) * 0.1;
+      player.x += player.vx;
+      player.y += player.vy;
+
+      player.x = Math.max(player.size, Math.min(mapSize - player.size, player.x));
+      player.y = Math.max(player.size, Math.min(mapSize - player.size, player.y));
+
+      for (let i = food.length - 1; i >= 0; i--) {
+        const f = food[i];
+        if (Math.hypot(player.x - f.x, player.y - f.y) < player.size + f.size) {
+          food.splice(i, 1);
+          player.size += 0.5;
+          score++;
+        }
+      }
+
+      viewX = player.x - canvas.width / 2;
+      viewY = player.y - canvas.height / 2;
+      viewX = Math.max(0, Math.min(mapSize - canvas.width, viewX));
+      viewY = Math.max(0, Math.min(mapSize - canvas.height, viewY));
+    }
+
+    function drawGrid() {
+      const spacing = 100;
+      ctx.strokeStyle = '#22303C';
+      ctx.lineWidth = 1;
+      const sx = spacing - (viewX % spacing);
+      for (let x = sx; x < canvas.width; x += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      const sy = spacing - (viewY % spacing);
+      for (let y = sy; y < canvas.height; y += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+   function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawGrid();
+
+  ctx.strokeStyle = '#374151';
+  ctx.strokeRect(-viewX, -viewY, mapSize, mapSize);
+
+  food.forEach(f => f.draw());
+
+  // draw player circle
+  const cx = player.x - viewX;
+  const cy = player.y - viewY;
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.size, 0, 2 * Math.PI);
+  ctx.fillStyle = player.color;
+  ctx.fill();
+
+  // draw player name, scaled to fit inside circle
+  let fontSize = player.size;
+  ctx.font = `${fontSize}px sans-serif`;
+  let textWidth = ctx.measureText(player.name).width;
+  const maxWidth = player.size * 2 * 0.9; // 90% of diameter
+  if (textWidth > maxWidth) {
+    fontSize = fontSize * (maxWidth / textWidth);
+    ctx.font = `${fontSize}px sans-serif`;
+  }
+  ctx.fillStyle = '#FFF';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(player.name, cx, cy);
+
+  // draw score UI
+  ctx.fillStyle = '#E5E7EB';
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`Score: ${Math.floor(score)}`, 10, 10);
+}
+
+
+function loop() {
+  if (!gameStarted) return;
+  update();
+  draw();
+  // update HTML score
+  document.getElementById('scoreBoard').textContent = `Score: ${Math.floor(score)}`;
+  requestAnimationFrame(loop);
+}
+
+  </script>
+</body>
+</html>
