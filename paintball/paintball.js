@@ -392,14 +392,18 @@ document.addEventListener('DOMContentLoaded', () => {
     highs = JSON.parse(localStorage.getItem('hs')||'[]');
     renderLeader();
   }
-  function renderLeader() {
-    const ul = document.getElementById('lbList');
-    ul.innerHTML = '';
-    highs.slice(0,10).forEach(h => {
-      const li = document.createElement('li');
-      li.textContent = `${h.name}: ${h.score}`;
-      ul.appendChild(li);
-    });
-  }
+function renderLeader(){
+  const ul = document.getElementById('lbList');
+  ul.innerHTML = '';
+  highs.slice(0,5).forEach(h => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="name">${h.name}</span>
+      <span class="score">${h.score}</span>
+    `;
+    ul.appendChild(li);
+  });
+}
+
   loadHighs();
 });
