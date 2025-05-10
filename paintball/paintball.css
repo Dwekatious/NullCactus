@@ -187,19 +187,62 @@ header:hover,
 }
 
 
-#leaderboard {
+/* LEADERBOARD STYLING */
+
+/* Heading */
+#leaderboard h3 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #F5A623;    /* gold accent */
+  margin-bottom: 8px;
+}
+
+/* List container */
+/* 1) Hide the scrollbar but keep scrolling */
+#leaderboard ul {
+  overflow-y: auto;
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE 10+ */
+}
+#leaderboard ul::-webkit-scrollbar {
+  display: none;               /* Chrome, Safari, Opera */
+}
+
+/* 2) Lay out name leftmost, score rightmost */
+#leaderboard li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+/* Make sure each span takes only as much as it needs */
+#leaderboard li .name {
+  flex: 20;
   text-align: left;
 }
 
-#leaderboard ul {
-  list-style: none;
-  max-height: 120px;
-  overflow: auto;
+#leaderboard li .score {
+  flex: 0;
+  text-align: right;
 }
 
-#leaderboard li {
-  padding: 4px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+
+/* Player name */
+#leaderboard li::before {
+  content: attr(data-name);
+  text-align: left;
+  flex: 1;
+}
+
+/* Score */
+#leaderboard li::after {
+  content: attr(data-score);
+  text-align: right;
+  flex: 0;
+  margin-left: 16px;
 }
 
 /* GAME OVER PANEL (hidden by default) */
