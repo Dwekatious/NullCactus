@@ -14,6 +14,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Null Cactus Software Solutions</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
+
+
   <style>
     html { scroll-behavior: smooth; }
     :root {
@@ -23,40 +26,127 @@
       --clr-card: #1F2937;
       --clr-text: #E5E7EB;
     }
+    /* logo color cycle over 30s through blues→white→dark */
+@keyframes logoColorCycle {
+  0%   { color: #001f3f; }  /* dark navy */
+  25%  { color: #0074D9; }  /* bright blue */
+  50%  { color: #FFFFFF; }  /* white */
+  75%  { color: #7FDBFF; }  /* light sky blue */
+  100% { color: #001f3f; }
+}
+.logo-text {
+  font-size: 3rem;       /* bump as high as you like */
+  margin-left: -170px;    /* pushes nav items to the right */
+  /* keep your existing animation: */
+  animation: logoColorCycle 30s linear infinite;
+}
+
+/* refined underline-on-hover nav links */
+.nav-link {
+  position: relative;
+  color: var(--clr-text);
+  transition: color .3s ease;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0;
+  width: 100%; height: 2px;
+  background: var(--clr-primary);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform .3s ease;
+}
+.nav-link:hover {
+  color: var(--clr-primary);
+}
+.nav-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+
+#starfield {
+  /* behind everything in hero */
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+
+
+
+
   </style>
 </head>
+
+
+
+
 <body class="bg-[var(--clr-bg)] text-[var(--clr-text)] font-sans antialiased">
 
-  <!-- NAV -->
-  <header class="fixed w-full z-50 bg-[var(--clr-bg)] shadow-md">
-    <nav class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-      <a href="#" class="text-xl font-bold text-[var(--clr-primary)]">Null Cactus</a>
-      <ul class="hidden md:flex space-x-6 text-sm">
-       <!-- <li><a href="#features" class="hover:text-[var(--clr-primary)]">Features</a></li> !-->
-        <li><a href="#showcase" class="hover:text-[var(--clr-primary)]">Games</a></li>
-        <li><a href="#contact" class="hover:text-[var(--clr-primary)]">Contact</a></li>
-      </ul>
-      <button class="md:hidden" onclick="document.getElementById('menu').classList.toggle('hidden')">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-      </button>
-    </nav>
-    <div id="menu" class="hidden md:hidden bg-[var(--clr-bg)]">
-      <a href="#features" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Features</a>
-      <a href="#showcase" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Showcase</a>
-      <a href="#contact" class="block px-4 py-2 hover:bg-[var(--clr-card)]">Contact</a>
-    </div>
-  </header>
+<!-- NAV -->
+<header class="fixed inset-x-0 top-0 z-50 bg-[var(--clr-bg)] shadow-md">
+  <nav class="max-w-6xl mx-auto flex items-center justify-start px-6 py-5">
+    <!-- Animated, enlarged logo pinned left -->
+    <a href="#" class="logo-text text-5xl font-bold mr-auto">
+      Null Cactus
+    </a>
 
-  <!-- HERO -->
-  <section class="pt-20 bg-gradient-to-br from-[var(--clr-primary)] to-[var(--clr-secondary)]">
-    <div class="max-w-6xl mx-auto px-4 py-32 text-center">
-      <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">NullCactus Studios</h1>
-      <p class="text-lg text-gray-200 mb-8">This website Is In Testing, More To Be Added Soon.</p>
-      <a href="single_file_games/about.html" class="inline-block bg-white text-[var(--clr-primary)] font-semibold py-3 px-6 rounded-full shadow hover:opacity-90 transition">Learn More</a>
-    </div>
-  </section>
+    <!-- Desktop menu -->
+    <ul class="hidden md:flex space-x-8 text-lg md:text-xl">
+
+      <li><a href="#showcase" class="nav-link">Games</a></li>
+      <li><a href="#contact"  class="nav-link">Contact</a></li>
+    </ul>
+
+    <!-- Mobile toggle -->
+    <button class="md:hidden p-2" onclick="document.getElementById('menu').classList.toggle('hidden')">
+      <svg class="w-6 h-6 text-[var(--clr-text)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- Mobile menu (unchanged) -->
+  <div id="menu" class="hidden md:hidden bg-[var(--clr-bg)]">
+    <a href="#showcase" class="block px-6 py-4 hover:bg-[var(--clr-card)]">Games</a>
+    <a href="#contact"  class="block px-6 py-4 hover:bg-[var(--clr-card)]">Contact</a>
+  </div>
+</header>
+
+
+
+
+ <!-- HERO -->
+<!-- HERO -->
+<section
+  id="hero"
+  class="relative overflow-hidden pt-20"
+  style="background-color: #15151a;"  
+>
+  <!-- starfield canvas -->
+  <canvas id="starfield" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- content above the canvas -->
+  <div class="relative z-10 max-w-6xl mx-auto px-4 py-32 text-center">
+    <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
+      NullCactus Studios
+    </h1>
+    <p class="text-lg text-gray-200 mb-8">
+      This website Is In Testing, More To Be Added Soon.
+    </p>
+    <a
+      href="single_file_games/about.html"
+      class="inline-block bg-white text-[var(--clr-primary)] font-semibold py-3 px-6 rounded-full shadow hover:opacity-90 transition"
+    >
+      Learn More
+    </a>
+  </div>
+</section>
+
+
 
   <!-- FEATURES -->
  <!-- <section id="features" class="py-20">
@@ -144,6 +234,171 @@
       © 2025 Null Cactus Software Solutions. All rights reserved.
     </div>
   </footer>
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+// STARFIELD + FULLY CONFIGURABLE COMETS
+(() => {
+  const canvas = document.getElementById('starfield'),
+        ctx    = canvas.getContext('2d');
+  let w, h, stars = [], shooting = [];
+
+  // ─── CONFIGURATION ────────────────────────────
+  const config = {
+    spawnBase:      1000,   // minimum ms between comets
+    spawnVar:       1,   // extra random ms
+    tailFactor:     0.09,    // tail length = len * this
+    lifeMult:       3,    // lifespan multiplier
+    fadeAlpha:      0.9,    // tail end opacity (0 = fully transparent)
+    opacityFixed:   0.0,    // if >0, every comet uses this opacity
+    opacityRandom:  0.6,  // if opacityFixed===0, opacity = random(0, opacityRandom)
+    fadeDuration:   60   // ← number of frames a comet fades out over
+  };
+
+
+  // ─── SETUP & RESIZE ───────────────────────────
+  function resize(){
+    w = canvas.width  = canvas.clientWidth;
+    h = canvas.height = canvas.clientHeight;
+    initStars();
+  }
+  function initStars(){
+    stars = [];
+    for(let i=0;i<200;i++){
+      stars.push({
+        x: Math.random()*w,
+        y: Math.random()*h,
+        r: Math.random()*1.2+0.3,
+        alpha: Math.random(),
+        dAlpha: (Math.random()*0.005)+0.002
+      });
+    }
+  }
+
+  // ─── SPAWN COMET ─────────────────────────────
+  function makeShootingStar(){
+    const edge = Math.floor(Math.random()*4),
+          p    = {x:0,y:0};
+    if(edge===0){ p.x=Math.random()*w;  p.y=-10;      }
+    else if(edge===1){ p.x=w+10;        p.y=Math.random()*h; }
+    else if(edge===2){ p.x=Math.random()*w;  p.y=h+10; }
+    else { p.x=-10; p.y=Math.random()*h; }
+
+    const tx = Math.random()*w,
+          ty = Math.random()*h;
+    let vx = tx-p.x, vy = ty-p.y,
+        mag = Math.hypot(vx,vy)||1;
+    vx/=mag; vy/=mag;
+
+    const speed = (Math.random()*5+5)*0.65,
+          len   = (Math.random()*300+100)*1.35;
+
+    // determine opacity
+    const opacity = config.opacityFixed > 0
+      ? config.opacityFixed
+      : Math.random() * config.opacityRandom;
+
+    shooting.push({
+      x: p.x, y: p.y,
+      dx: vx*speed, dy: vy*speed,
+      speed, len,
+      life: 0,
+      // fully random hex color:
+      color: '#' + Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,'0'),
+      opacity
+    });
+  }
+
+  // ─── DRAW LOOP ──────────────────────────────
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+
+    // twinkling stars
+    stars.forEach(s=>{
+      s.alpha += s.dAlpha;
+      if(s.alpha<=0||s.alpha>=1) s.dAlpha *= -1;
+      ctx.globalAlpha = s.alpha;
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // draw comets
+    for(let i=0;i<shooting.length;i++){
+      const m = shooting[i],
+            tf = config.tailFactor,
+            tailLen = m.len * tf,
+            x2 = m.x - m.dx*tailLen,
+            y2 = m.y - m.dy*tailLen;
+
+      // gradient from head→tail
+      const grad = ctx.createLinearGradient(m.x,m.y,x2,y2);
+      grad.addColorStop(0, m.color);
+      grad.addColorStop(1, `rgba(0,0,0,${config.fadeAlpha})`);
+
+      ctx.globalAlpha = m.opacity;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = 2;
+      ctx.beginPath();
+      ctx.moveTo(m.x,m.y);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // advance
+      m.x += m.dx;
+      m.y += m.dy;
+      m.life++;
+
+      // remove when out or expired
+     // after its normal lifespan, begin fading
+     const maxLife = (m.len / m.speed) * config.lifeMult;
+     if (m.life > maxLife) {
+       m.opacity -= 1 / config.fadeDuration;
+    }
+     // remove when fully faded or offscreen
+     if (
+       m.opacity <= 0 ||
+       m.x < -50 || m.x > w + 50 ||
+       m.y < -50 || m.y > h + 50
+     ) {
+      shooting.splice(i, 1);
+       i--;
+     }
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // ─── INIT & SCHEDULE ─────────────────────────
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+  (function schedule(){
+    makeShootingStar();
+    setTimeout(schedule, config.spawnBase + Math.random()*config.spawnVar);
+  })();
+})();
+</script>
+
+
+
+
+
+
+
 
 </body>
 </html>
