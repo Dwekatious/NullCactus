@@ -1,26 +1,36 @@
 // paintball.js
 document.addEventListener('DOMContentLoaded', () => {
   // ─── INITIAL STATE & DATA ─────────────────────────
-  let magSize = 30;              // initial magazine size
-  let baseBulletDamage = 30;
-  let maxReserve       = 90;
-  let spawnStartTime;
-  const baseInterval   = 5000;   // ms
-  const minInterval    = 200;    // ms
-  const decayRate      = 0.0005;
-  const rampDuration   = 300_000;  // 5 min
-  const latePhaseStart = rampDuration;
-  const lateDecayRate  = 0.002;
-  const lateMinInterval= 50;
-  let latePhaseTriggered = false;
+  let magSize             = 30;        // How many rounds fit in one magazine initially
+  let baseBulletDamage    = 30;        // The starting damage of each shot
+  let maxReserve          = 90;        // The maximum ammo you can carry in reserve
+  let spawnStartTime;                  // Timestamp when enemy‐spawning began
+
+  const baseInterval      = 2000;      // Initial delay (ms) between enemy spawn waves
+  const minInterval       = 500;       // Fastest possible spawn delay (ms) after ramp‐up
+  const decayRate         = 0.0005;    // Linear interpolation rate for spawn delay ramp
+  const rampDuration      = 300_000;   // 5 minutes (ms) over which spawn delay linearly goes from baseInterval→minInterval
+  const latePhaseStart    = rampDuration; // Alias: when to switch from “ramp” mode into “late phase”
+  const lateDecayRate     = 0.002;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
+  const lateMinInterval   = 150;        // Hard lower-bound on spawn delay in the late phase (ms)
+  let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
+
+  // ─── MAGNETIC PICKUP ─────────────────────────────────
+  let   pickupRadius      = 40;        // How far (px) loot will be magnetically pulled in
+  const maxPickupRadius   = 600;       // Absolute cap on pickupRadius
+  const magnetPullSpeed   = 15;         // Speed (px/frame) at which loot moves toward player
+
+  // ─── BOSS SPAWN CONFIG ───────────────────────────────
+  const bossSpawnIntervalMin = 60_000;  // Minimum delay (ms) between boss spawns
+  const bossSpawnIntervalMax = 120_000; // Maximum delay (ms) between boss spawns
 
   const upgrades = {
     health:   { cost: 5,  apply: () => { player.maxHealth += 20; player.health += 20; } },
-    damage:   { cost: 7,  apply: () => { baseBulletDamage += 5; currentWeapon.damage += 5; } },
+    damage:   { cost: 5,  apply: () => { baseBulletDamage += 5; currentWeapon.damage += 5; } },
     magSize:  { cost: 6,  apply: () => { magSize += 5; } },
-    fireRate: { cost:10,  apply: () => {
-      currentWeapon.fireRate = Math.max(20, Math.floor(currentWeapon.fireRate * 0.9));
-    } }
+    fireRate: { cost:10,  apply: () => {currentWeapon.fireRate = Math.max(20, Math.floor(currentWeapon.fireRate * 0.9));} },
+    magnet: { cost: 6, apply: () => {pickupRadius = Math.min(maxPickupRadius, pickupRadius + 20);}}
+
   };
   const weapons = {
     buckshot:{ cost:10, damage:15, bullets:5, spread:0.3,  reload:800,  fireRate:300 },
@@ -42,6 +52,63 @@ document.addEventListener('DOMContentLoaded', () => {
     shieldbearer:{size:70,  health:150, speed:1.0, color:'#1E90FF', weight:7,  shield:50 }
   };
 
+    // ─── DEFINE MULTIPLE BOSS TYPES ────────────────────
+  enemyTypes.basicBoss = {
+    size: 120, health: 4000, speed: 0.6, color: '#FF0000',
+    fireRate: 10000, lastShot: 0, pattern: 'radial'
+  };
+  enemyTypes.rocketBoss = {
+    size: 140, health: 10000, speed: 0.5, color: '#FF00AA',
+    fireRate: 3000, lastShot: 0, pattern: 'homing'
+  };
+  enemyTypes.spiralBoss = {
+    size: 130, health: 6000, speed: 0.4, color: '#00FFAA',
+    fireRate: 2500, lastShot: 0, pattern: 'spiral', spiralAngle: 0
+  };
+  
+
+
+  // human‐readable labels for buttons
+  const upgradeLabels = {
+    health:   "+20 HP",
+    damage:   "+5 DMG",
+    magSize:  "+5 Mag",
+    fireRate: "–10% FR",
+    magnet:   "Magnetic Pull "
+  };
+
+  function updateUpgradeButtons() {
+    document.querySelectorAll('.upgrade-btn').forEach(btn => {
+      const key = btn.dataset.upgrade;
+      if (!upgrades[key]) return;
+      btn.textContent = `${upgradeLabels[key]} — ${upgrades[key].cost} g`;
+    });
+  }
+  const panel = document.getElementById('upgradePanel');
+  panel.addEventListener('click', e => {
+    const uKey = e.target.dataset.upgrade;
+    if (uKey && upgrades[uKey] && gold >= upgrades[uKey].cost) {
+      gold -= upgrades[uKey].cost;
+      upgrades[uKey].apply();
+
+      // bump price by 10%
+      upgrades[uKey].cost = Math.ceil(upgrades[uKey].cost * 1.1);
+
+      refreshPanel();           // your existing UI update
+      updateUpgradeButtons();   // redraw all upgrade buttons
+    }
+  });
+
+
+
+  
+  
+  updateUpgradeButtons();
+  // container for flame-particles
+  let rocketParticles = [];
+
+
+
   // ─── CANVAS SETUP ───────────────────────────────
   const canvas = document.getElementById('game');
   const ctx    = canvas.getContext('2d');
@@ -60,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentWeapon = { damage:30, bullets:1, spread:0, reload:reloadDur, fireRate:300 };
   let gameStarted = false;
   let highs = [];
+  let bossBullets = [];
+
 
   // ─── UI REFERENCES ──────────────────────────────
   const ui      = document.getElementById('ui');
@@ -77,16 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   restartBtn.onclick = () => location.reload();
 
-  // populate upgrade & weapon buttons
-  document.querySelectorAll('.upgrade-btn').forEach(btn => {
-    const key = btn.dataset.upgrade;
-    if (upgrades[key]) btn.textContent = `${btn.textContent} — ${upgrades[key].cost} g`;
-  });
-  document.querySelectorAll('.weapon-btn').forEach(btn => {
-    const key = btn.dataset.weapon;
-    if (weapons[key]) btn.textContent = `${btn.textContent} — ${weapons[key].cost} g`;
-  });
-
+  
   // ─── SHOP PANEL HANDLER ─────────────────────────
   function refreshPanel() {
     upGold.textContent = gold;
@@ -121,7 +181,40 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleNextSpawn();
     updateUI();
     requestAnimationFrame(loop);
+    scheduleNextBoss();
   }
+  // call this at end of initGame()
+scheduleNextBoss();
+
+function scheduleNextBoss(){
+  const delay = bossSpawnIntervalMin
+              + Math.random()*(bossSpawnIntervalMax - bossSpawnIntervalMin);
+  setTimeout(()=>{
+    spawnBoss();
+    scheduleNextBoss();
+  }, delay);
+}
+
+function spawnBoss(){
+  // pick a boss type at random
+  const keys = ['basicBoss','rocketBoss','spiralBoss'];
+  const choice = keys[Math.floor(Math.random()*keys.length)];
+  const def = enemyTypes[choice];
+  // spawn at random edge
+  let x,y,edge = Math.floor(Math.random()*4);
+  if(edge===0){ x=0;           y=Math.random()*mapSize; }
+  if(edge===1){ x=mapSize;      y=Math.random()*mapSize; }
+  if(edge===2){ y=0;           x=Math.random()*mapSize; }
+  if(edge===3){ y=mapSize;      x=Math.random()*mapSize; }
+
+  enemies.push({
+    ...def,
+    x, y,
+    maxHealth: def.health,
+    isBoss: true
+  });
+}
+
 
   function loop() {
     if (!gameStarted) return;
@@ -219,146 +312,384 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── UPDATE ────────────────────────────────────
   let viewX = 0, viewY = 0;
   function update() {
-    if (!player) return;
-    // movement
-    if (keys['w']) player.y -= player.speed;
-    if (keys['s']) player.y += player.speed;
-    if (keys['a']) player.x -= player.speed;
-    if (keys['d']) player.x += player.speed;
-    // collisions
-    objects.forEach(o => {
-      const dx = player.x - o.x, dy = player.y - o.y;
-      const dist = player.size/2 + o.size/2;
-      if (Math.hypot(dx,dy) < dist) {
-        const ang = Math.atan2(dy,dx);
-        player.x = o.x + Math.cos(ang)*dist;
-        player.y = o.y + Math.sin(ang)*dist;
-      }
-    });
-    // bounds & camera
-    player.x = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.x));
-    player.y = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.y));
-    viewX = Math.max(0, Math.min(mapSize-w, player.x-w/2));
-    viewY = Math.max(0, Math.min(mapSize-h, player.y-h/2));
-    // finish reload
-    if (reloading && Date.now() - reloadStart >= reloadDur) {
-      reloading = false;
-      const take = Math.min(magSize, reserve);
-      reserve -= take; ammo = take; updateUI();
+  if (!player) return;
+  // ─── PLAYER MOVEMENT & COLLISIONS ─────────────────────────────
+  if (keys['w']) player.y -= player.speed;
+  if (keys['s']) player.y += player.speed;
+  if (keys['a']) player.x -= player.speed;
+  if (keys['d']) player.x += player.speed;
+
+  objects.forEach(o => {
+    const dx = player.x - o.x, dy = player.y - o.y;
+    const dist = player.size/2 + o.size/2;
+    if (Math.hypot(dx,dy) < dist) {
+      const ang = Math.atan2(dy,dx);
+      player.x = o.x + Math.cos(ang)*dist;
+      player.y = o.y + Math.sin(ang)*dist;
     }
-    // move enemies
-    enemies.forEach(e => {
-      const ang = Math.atan2(player.y - e.y, player.x - e.x);
-      e.x += Math.cos(ang) * e.speed;
-      e.y += Math.sin(ang) * e.speed;
-    });
-    // bullets → enemies
-    bullets.forEach((b,i) => {
-      b.x += Math.cos(b.ang)*b.spd;
-      b.y += Math.sin(b.ang)*b.spd;
-      if (b.x<0||b.x>mapSize||b.y<0||b.y>mapSize) return bullets.splice(i,1);
-      enemies.forEach((e,j) => {
-        if (Math.hypot(b.x-e.x,b.y-e.y) < b.size+e.size/2) {
-          e.health -= b.damage;
-          bullets.splice(i,1);
-          if (e.health <= 0) {
-            score += 10;
-            let r = Math.random(), type = null;
-            if (r<0.5) type = null;
-            else if (r<0.8) type = 'gold';
-            else if (r<0.95) type = 'ammo';
-            else type = 'health';
-            if (type) {
-              const val = type==='ammo'?100:type==='health'?30:
-                          (e.size>60?10:e.size>40?5:2);
-              pickups.push({ x:e.x,y:e.y,size:20,type,value:val });
-            }
-            enemies.splice(j,1);
-          }
-        }
-      });
-    });
-    // pickups & contact
-    pickups.forEach((p,i) => {
-      if (Math.hypot(player.x-p.x, player.y-p.y) < player.size/2 + p.size/2) {
-        if (p.type==='ammo')   reserve+=p.value;
-        if (p.type==='health') player.health = Math.min(player.maxHealth, player.health+p.value);
-        if (p.type==='gold')   gold+=p.value;
-        pickups.splice(i,1);
-      }
-    });
-    enemies.forEach(e => {
-      if (Math.hypot(player.x-e.x, player.y-e.y) < player.size/2 + e.size/2) {
-        player.health--;
-      }
-    });
-    // death
-    if (player.health <= 0) {
-      gameStarted = false;
-      document.getElementById('finalScore').textContent = score;
-      document.getElementById('gameOver').style.display = 'block';
-      upgradePanel.style.display = 'none';
-      saveHigh(score);
-    }
+  });
+
+  // ─── BOUNDS & CAMERA ───────────────────────────────────────────
+  player.x = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.x));
+  player.y = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.y));
+  viewX = Math.max(0, Math.min(mapSize-w, player.x-w/2));
+  viewY = Math.max(0, Math.min(mapSize-h, player.y-h/2));
+
+  // ─── RELOAD FINISH ─────────────────────────────────────────────
+  if (reloading && Date.now() - reloadStart >= reloadDur) {
+    reloading = false;
+    const take = Math.min(magSize, reserve);
+    reserve -= take; 
+    ammo = take; 
     updateUI();
   }
+
+  // ─── ENEMY MOVEMENT ────────────────────────────────────────────
+  enemies.forEach(e => {
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x += Math.cos(ang) * e.speed;
+    e.y += Math.sin(ang) * e.speed;
+  });
+
+  // ─── PLAYER BULLETS → ENEMIES & BOSS ───────────────────────────
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    // 1) MOVE
+    b.x += Math.cos(b.ang) * b.spd;
+    b.y += Math.sin(b.ang) * b.spd;
+
+    // 2) OUT OF BOUNDS?
+    if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    // 3) COLLIDE WITH ANY ENEMY (regular or boss)
+    let hitSomething = false;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      const dx = b.x - e.x, dy = b.y - e.y;
+      if (Math.hypot(dx, dy) < b.size + e.size/2) {
+        // DAMAGE
+        e.health -= b.damage;
+        bullets.splice(i, 1);
+        hitSomething = true;
+
+        // IF KILLED
+        if (e.health <= 0) {
+          if (e.isBoss) {
+            score += 100;
+            // boss kill reward
+            const dropAmount = Math.floor(score/10);
+            pickups.push({
+              x: e.x,
+              y: e.y,
+              size: 20,
+              type: 'gold',
+              value: dropAmount
+            });
+            } 
+            else {
+            score += 10;
+            // spawn regular pickups…
+            let r = Math.random(), type = null;
+            if (r < 0.5)        type = null;
+            else if (r < 0.8)   type = 'gold';
+            else if (r < 0.95)  type = 'ammo';
+            else                type = 'health';
+            if (type) {
+              const val = 
+                type==='ammo'   ? 100 :
+                type==='health'?  30 :
+                (e.size>60?10:e.size>40?5:2);
+              pickups.push({ x:e.x, y:e.y, size:20, type, value:val });
+            }
+          }
+          enemies.splice(j, 1);
+        }
+        break;
+      }
+      
+    }
+
+    if (hitSomething) continue;
+  }
+w
+  // ─── MOVE + COLLIDE bossBullets ────────────────────
+  bossBullets.forEach((b,i) => {
+    // homing adjustment
+    if (b.homing) {
+      const desired = Math.atan2(player.y-b.y, player.x-b.x);
+      b.ang += (desired - b.ang)*0.08;  // a bit more responsive
+    }
+
+    // step
+    const dx = Math.cos(b.ang)*b.spd;
+    const dy = Math.sin(b.ang)*b.spd;
+    b.x += dx;
+    b.y += dy;
+    b.life++;
+
+    // emit a flame-particle behind the rocket
+    if (b.homing) {
+      rocketParticles.push({
+        x: b.x - dx*0.5,
+        y: b.y - dy*0.5,
+        life: 0, maxLife: 30 + Math.random()*20
+      });
+    }
+
+    // collision with map objects
+    for (const o of objects) {
+      if (Math.hypot(b.x - o.x, b.y - o.y) < b.size + o.size/2) {
+        bossBullets.splice(i,1);
+        return;
+      }
+    }
+    // expire if life or out of bounds
+    if (
+      b.life > b.maxLife ||
+      b.x < -50 || b.x > mapSize+50 ||
+      b.y < -50 || b.y > mapSize+50
+    ) {
+      bossBullets.splice(i,1);
+    }
+  });
+
+
+  // ─── BOSS BULLETS MOVEMENT ─────────────────────────────────────
+  bossBullets.forEach((b,i) => {
+    if (b.homing) {
+      const desired = Math.atan2(player.y-b.y, player.x-b.x);
+      b.ang += (desired - b.ang) * 0.05;
+    }
+    b.x += Math.cos(b.ang)*b.spd;
+    b.y += Math.sin(b.ang)*b.spd;
+    b.life++;
+    // expire
+    if (b.life > b.maxLife || b.x<0||b.x>mapSize||b.y<0||b.y>mapSize) {
+      bossBullets.splice(i,1);
+    }
+  });
+
+  // ─── BOSS BULLETS → PLAYER ONLY ────────────────────────────────
+  bossBullets.forEach((b,i) => {
+    if (Math.hypot(player.x-b.x, player.y-b.y) < player.size/2 + b.size) {
+      player.health -= 20;     // boss bullet damage
+      bossBullets.splice(i,1);
+    }
+  });
+
+  // ─── MAGNETIC PULL ─────────────────────
+  pickups.forEach(p=>{
+    const dx = player.x - p.x,
+          dy = player.y - p.y,
+          d  = Math.hypot(dx,dy);
+    if (d < pickupRadius && d > 1) {
+      p.x += (dx/d) * magnetPullSpeed;
+      p.y += (dy/d) * magnetPullSpeed;
+    }
+  });
+  // ─── PICKUPS & ENEMY CONTACT ───────────────────────────────────
+  pickups.forEach((p,i) => {
+    if (Math.hypot(player.x-p.x, player.y-p.y) < player.size/2 + p.size/2) {
+      if (p.type==='ammo')   reserve += p.value;
+      if (p.type==='health') player.health = Math.min(player.maxHealth, player.health+p.value);
+      if (p.type==='gold')   gold    += p.value;
+      pickups.splice(i,1);
+    }
+  });
+  enemies.forEach(e => {
+    if (Math.hypot(player.x-e.x, player.y-e.y) < player.size/2 + e.size/2) {
+      player.health--;
+    }
+  });
+
+  // ─── DEATH CHECK ───────────────────────────────────────────────
+  if (player.health <= 0) {
+    gameStarted = false;
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('gameOver').style.display = 'block';
+    upgradePanel.style.display = 'none';
+    saveHigh(score);
+  }
+
+  updateUI();
+
+  // ─── BOSS SHOOTING (unchanged) ────────────────────────────────
+  enemies.forEach(boss => {
+    if (!boss.isBoss) return;
+    const now = Date.now();
+    if (now - boss.lastShot < boss.fireRate) return;
+    boss.lastShot = now;
+
+    if (boss.pattern === 'radial') {
+      for (let i=0; i<8; i++) {
+        const angle = (Math.PI*2/8)*i;
+        bossBullets.push({
+          x: boss.x, y: boss.y,
+          ang: angle, spd: 8, size: 8,
+          color: '#FF4500',
+          life: 0, maxLife: 200, homing: false
+        });
+      }
+    } else {
+      const angleToPlayer = Math.atan2(player.y-boss.y, player.x-boss.x);
+      bossBullets.push({
+        x: boss.x, y: boss.y,
+        ang: angleToPlayer, spd: 2, size: 12,
+        color: '#FF00FF',
+        life: 0, maxLife: 300, homing: true
+      });
+    }
+  });
+}
+
 
   // ─── DRAW ───────────────────────────────────────
   function draw() {
     if (!player) return;
+
+    // ─── BACKGROUND & GRID ─────────────────────────────
     ctx.fillStyle = latePhaseTriggered ? '#440000' : '#121418';
-    ctx.fillRect(0,0,w,h);
-    // grid
-    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
-    for (let x = -viewX%50; x < w; x += 50) {
-      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    for (let x = -viewX % 50; x < w; x += 50) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
     }
-    for (let y = -viewY%50; y < h; y += 50) {
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    for (let y = -viewY % 50; y < h; y += 50) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
     }
-    // objects
-    ctx.fillStyle='#2A2C33';
+
+    // ─── MAP OBJECTS ────────────────────────────────────
+    ctx.fillStyle = '#2A2C33';
     objects.forEach(o => {
-      ctx.fillRect(o.x-viewX-o.size/2, o.y-viewY-o.size/2, o.size, o.size);
+      ctx.fillRect(
+        o.x - viewX - o.size/2,
+        o.y - viewY - o.size/2,
+        o.size, o.size
+      );
     });
-    // player
-    const px = player.x - viewX, py = player.y - viewY;
+
+    // ─── PLAYER ─────────────────────────────────────────
+    const px = player.x - viewX,
+          py = player.y - viewY;
     ctx.save();
-    ctx.translate(px,py);
+    ctx.translate(px, py);
     ctx.rotate(player.angle);
-    ctx.fillStyle='#4A90E2';
-    ctx.fillRect(-player.size/2,-player.size/2,player.size,player.size);
+    ctx.fillStyle = '#4A90E2';
+    ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
     ctx.restore();
-    // reload bar
+
+    // ─── RELOAD BAR ─────────────────────────────────────
     if (reloading) {
-      const pct = Math.min((Date.now()-reloadStart)/reloadDur,1);
-      ctx.fillStyle='#FFF';
-      ctx.fillRect(px-50,py-player.size-10,100*pct,6);
+      const pct = Math.min((Date.now() - reloadStart)/reloadDur, 1);
+      ctx.fillStyle = '#FFF';
+      ctx.fillRect(px - 50, py - player.size - 10, 100 * pct, 6);
     }
-    // bullets
-    ctx.fillStyle='#F5A623';
+
+    // ─── PLAYER BULLETS ──────────────────────────────────
+    ctx.fillStyle = '#F5A623';
     bullets.forEach(b => {
-      ctx.fillRect(b.x-viewX-b.size/2, b.y-viewY-b.size/2, b.size, b.size);
+      ctx.fillRect(
+        b.x - viewX - b.size/2,
+        b.y - viewY - b.size/2,
+        b.size, b.size
+      );
     });
-    // enemies
+
+    // ─── ENEMIES ─────────────────────────────────────────
     enemies.forEach(e => {
-      const ex = e.x - viewX, ey = e.y - viewY;
+      const ex = e.x - viewX,
+            ey = e.y - viewY;
+      // body
       ctx.fillStyle = e.color;
-      ctx.fillRect(ex-e.size/2, ey-e.size/2, e.size, e.size);
+      ctx.fillRect(ex - e.size/2, ey - e.size/2, e.size, e.size);
+      // health bar
       const pct = e.health / e.maxHealth;
       ctx.fillStyle = '#555';
-      ctx.fillRect(ex-e.size/2, ey-e.size/2-8, e.size, 6);
+      ctx.fillRect(ex - e.size/2, ey - e.size/2 - 8, e.size, 6);
       ctx.fillStyle = '#0F0';
-      ctx.fillRect(ex-e.size/2, ey-e.size/2-8, e.size*pct, 6);
+      ctx.fillRect(ex - e.size/2, ey - e.size/2 - 8, e.size * pct, 6);
     });
-    // pickups
+
+    // ─── PICKUPS ─────────────────────────────────────────
     pickups.forEach(p => {
-      const x = p.x - viewX, y = p.y - viewY;
-      ctx.fillStyle = p.type==='ammo'? '#F5A623' :
-                      p.type==='health'? '#0F0' : '#FFD700';
-      ctx.fillRect(x-p.size/2, y-p.size/2, p.size, p.size);
+      const x = p.x - viewX,
+            y = p.y - viewY;
+      ctx.fillStyle =
+        p.type === 'ammo'   ? '#F5A623' :
+        p.type === 'health' ? '#0F0'    :
+                              '#FFD700';
+      ctx.fillRect(x - p.size/2, y - p.size/2, p.size, p.size);
+    });
+
+    // ─── ROCKET FLAME PARTICLES ─────────────────────────
+    rocketParticles.forEach((p, i) => {
+      // advance life
+      p.life++;
+      // compute alpha fade
+      const alpha = 1 - p.life / p.maxLife;
+      if (alpha <= 0) {
+        rocketParticles.splice(i, 1);
+        return;
+      }
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = `rgba(255,150,0,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(
+        p.x - viewX,
+        p.y - viewY,
+        4 + 2 * alpha,
+        0, Math.PI * 2
+      );
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    // ─── BOSS BULLETS & ROCKETS ─────────────────────────
+    bossBullets.forEach(b => {
+      const bx = b.x - viewX,
+            by = b.y - viewY;
+
+      if (b.homing) {
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(b.ang);
+
+        // body rectangle (now twice as long)
+        const bodyW = b.size * 2,
+              bodyH = b.size / 2;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(-bodyW/2, -bodyH/2, bodyW, bodyH);
+
+        // nose triangle (scaled to match)
+        ctx.beginPath();
+        ctx.moveTo(bodyW/2, 0);
+        ctx.lineTo(bodyW/2 + bodyW/2, -bodyH/2);
+        ctx.lineTo(bodyW/2 + bodyW/2,  bodyH/2);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+      } else {
+        // radial bullet as circle
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.arc(bx, by, b.size, 0, Math.PI*2);
+        ctx.fill();
+      }
     });
   }
+
 
   // ─── UI UPDATE HELPERS ──────────────────────────
   function pop(el) {
