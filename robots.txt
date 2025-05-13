@@ -1,6 +1,0 @@
-# allow all crawlers to access everything
-User-agent: *
-Allow: /
-
-# point search engines at your sitemap
-Sitemap: https://nullcactus.com/sitemap.xml
