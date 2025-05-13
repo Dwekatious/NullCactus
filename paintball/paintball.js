@@ -11,8 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const decayRate         = 0.0005;    // Linear interpolation rate for spawn delay ramp
   const rampDuration      = 500_000;   // 5 minutes (ms) over which spawn delay linearly goes from baseInterval→minInterval
   const latePhaseStart    = rampDuration; // Alias: when to switch from “ramp” mode into “late phase”
-  const lateDecayRate     = 0.002;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
-  const lateMinInterval   = 1;        // Hard lower-bound on spawn delay in the late phase (ms)
+  const lateDecayRate     = 0.0000231;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
+  const lateMinInterval   = 25;        // Hard lower-bound on spawn delay in the late phase (ms)
   let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
 
   // ─── MAGNETIC PICKUP ─────────────────────────────────
