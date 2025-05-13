@@ -6,13 +6,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
 
-  const baseInterval      = 2000;      // Initial delay (ms) between enemy spawn waves
+  const baseInterval      = 3000;      // Initial delay (ms) between enemy spawn waves
   const minInterval       = 500;       // Fastest possible spawn delay (ms) after ramp‐up
   const decayRate         = 0.0005;    // Linear interpolation rate for spawn delay ramp
-  const rampDuration      = 300_000;   // 5 minutes (ms) over which spawn delay linearly goes from baseInterval→minInterval
+  const rampDuration      = 500_000;   // 5 minutes (ms) over which spawn delay linearly goes from baseInterval→minInterval
   const latePhaseStart    = rampDuration; // Alias: when to switch from “ramp” mode into “late phase”
   const lateDecayRate     = 0.002;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
-  const lateMinInterval   = 150;        // Hard lower-bound on spawn delay in the late phase (ms)
+  const lateMinInterval   = 1;        // Hard lower-bound on spawn delay in the late phase (ms)
   let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
 
   // ─── MAGNETIC PICKUP ─────────────────────────────────
@@ -21,11 +21,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const magnetPullSpeed   = 15;         // Speed (px/frame) at which loot moves toward player
 
   // ─── BOSS SPAWN CONFIG ───────────────────────────────
-  const bossSpawnIntervalMin = 60_000;  // Minimum delay (ms) between boss spawns
-  const bossSpawnIntervalMax = 120_000; // Maximum delay (ms) between boss spawns
+  const bossSpawnIntervalMin = 10_000;  // Minimum delay (ms) between boss spawns
+  const bossSpawnIntervalMax = 60_000; // Maximum delay (ms) between boss spawns
 
   const upgrades = {
-    health:   { cost: 5,  apply: () => { player.maxHealth += 20; player.health += 20; } },
+    health:   { cost: 20,  apply: () => { player.maxHealth += 20; player.health += 20; } },
     damage:   { cost: 5,  apply: () => { baseBulletDamage += 5; currentWeapon.damage += 5; } },
     magSize:  { cost: 6,  apply: () => { magSize += 5; } },
     fireRate: { cost:10,  apply: () => {currentWeapon.fireRate = Math.max(20, Math.floor(currentWeapon.fireRate * 0.9));} },
@@ -33,9 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   };
   const weapons = {
-    buckshot:{ cost:10, damage:15, bullets:5, spread:0.3,  reload:800,  fireRate:300 },
+    buckshot:{ cost:10, damage:15, bullets:7, spread:0.5,  reload:800,  fireRate:300 },
     minigun: { cost:20, damage:5,  bullets:1, spread:0.15, reload:1500, fireRate:50  },
-    sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:800 }
+    sniper:  { cost:30, damage:10000,bullets:1, spread:0,    reload:2000, fireRate:800 }
   };
   const enemyTypes = {
     grunt:      { size:40,  health:80,  speed:1.5, color:'#D0021B', weight:40 },
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
       upgrades[uKey].apply();
 
       // bump price by 10%
-      upgrades[uKey].cost = Math.ceil(upgrades[uKey].cost * 1.1);
+      upgrades[uKey].cost = Math.ceil(upgrades[uKey].cost * 1.5);
 
       refreshPanel();           // your existing UI update
       updateUpgradeButtons();   // redraw all upgrade buttons
