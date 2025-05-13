@@ -87,6 +87,36 @@
 
 
 
+
+
+/* change log style */
+  /* seamless auto-scroll */
+  @keyframes scrollLoop {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+  .changelog-viewport {
+    overflow: hidden;
+    height: 24rem;              /* adjust to your desired visible height */
+    position: relative;
+  }
+  .changelog-inner {
+    display: flex;
+    flex-direction: column;
+    animation: scrollLoop 60s linear infinite;
+  }
+  /* make sure each entry is same height so 50% == one full list */
+  .changelog-item {
+    flex: 0 0 auto;
+    margin-bottom: 1.5rem;
+  }
+  /* fade-up only on first reveal */
+  .fade-up { opacity: 0; animation: fadeUp 0.6s ease-out forwards; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   </style>
 </head>
 
@@ -107,7 +137,7 @@
     <ul class="hidden md:flex space-x-8 text-lg md:text-xl">
 
       <li><a href="#showcase" class="nav-link">Games</a></li>
-      <li><a href="#contact"  class="nav-link">Contact</a></li>
+      <li><a href="#contact"  class="nav-link">Latest Updates</a></li>
     </ul>
 
     <!-- Mobile toggle -->
@@ -122,7 +152,7 @@
   <!-- Mobile menu (unchanged) -->
   <div id="menu" class="hidden md:hidden bg-[var(--clr-bg)]">
     <a href="#showcase" class="block px-6 py-4 hover:bg-[var(--clr-card)]">Games</a>
-    <a href="#contact"  class="block px-6 py-4 hover:bg-[var(--clr-card)]">Contact</a>
+    <a href="#contact"  class="block px-6 py-4 hover:bg-[var(--clr-card)]">Latest Updates</a>
   </div>
 </header>
 
@@ -192,7 +222,7 @@
   </section> -->
 
   <!-- SHOWCASE -->
-    <!-- SHOWCASE -->
+    <!-- changelog -->
   <section id="showcase" class="py-20 bg-[var(--clr-bg)]">
     <div class="max-w-6xl mx-auto px-4">
       <h2 class="text-3xl font-bold text-center mb-12">Our list of games, more to come!</h2>
@@ -206,7 +236,7 @@
           </div>
         </div>
         <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
-          <img src="paintball.png" alt="Demo 2" class="w-full h-48 object-cover">
+          <img src="paintball2.png" alt="Demo 2" class="w-full h-48 object-cover">
           <div class="p-6">
             <h4 class="text-2xl font-bold mb-2">Shoot'em All!</h4>
             <p class="text-gray-300 mb-4">The 5 minute pit of hell.</p>
@@ -225,8 +255,142 @@
     </div>
   </section>
 
+
+
+
+
+
+
+
+
+
+<!-- CHANGELOG -->
+<section id="changelog" class="py-16 bg-[#001f3f]">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-[var(--clr-bg)] p-8 rounded-2xl shadow-2xl">
+      <h2 class="text-3xl font-bold text-center text-[var(--clr-primary)] mb-8 fade-up" style="animation-delay:0.1s">
+        📝 Changelog
+      </h2>
+
+      <!-- viewport to mask overflow -->
+      <div class="changelog-viewport">
+
+        <!-- inner list (duplicated) -->
+        <div class="changelog-inner">
+
+          <!-- List of 10 entries -->
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Magnetic Pull</span>
+              <span class="text-sm text-gray-400">v1.2.2 · May  13, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              New “Magnetic Pull” upgrade—loot within radius glides to player automatically.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Boss Events</span>
+              <span class="text-sm text-gray-400">v1.2.1 · May  13, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added three boss types (radial, homing rocket & spiral) for extra challenge.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Rocket Boss Visuals</span>
+              <span class="text-sm text-gray-400">v1.2.0 · May 13, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Homing rockets now render as styled shapes with fading fire-particle trails.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Null.io: Performance Optimizations</span>
+              <span class="text-sm text-gray-400">v1.1.9 · May 11, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Reduced draw calls and smoothed out frame rates on large maps.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Hero Banner: Starfield & Shooting Stars</span>
+              <span class="text-sm text-gray-400">v1.1.8 · May 10, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Introduced night-sky background with multicolor shooting stars effect.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Paintball UI: Panel & Scrollbar Restyle</span>
+              <span class="text-sm text-gray-400">v1.1.7 · May 8, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              File structure optemizations.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Main Page: Logo Animation</span>
+              <span class="text-sm text-gray-400">v1.1.6 · May 5, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Logo now gently cycles through a spectrum of blues and whites over 30s.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Leaderboard: Top 5 & Alignment</span>
+              <span class="text-sm text-gray-400">v1.1.5 · May  3, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Fixed leaderboard issues in paintball.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Index Page: Typography Sync</span>
+              <span class="text-sm text-gray-400">v1.1.4 · Apr 29, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              standardized fonts across all pages for consistency.
+            </p>
+          </div>
+
+          <!-- duplicate block for seamless loop -->
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <!-- same content as first entry -->
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Magnetic Pull</span>
+              <span class="text-sm text-gray-400">v1.2.2 · May 13, 2025</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              New “Magnetic Pull” upgrade—loot within radius glides to player automatically.
+            </p>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
   <!-- CONTACT -->
- <section id="contact" class="py-20">
+ <section id="contact" class="py-16 bg-[#001f3f]">
     <div class="max-w-4xl mx-auto px-4 text-center">
       <h2 class="text-3xl font-bold mb-6">Get In Touch at NullCactus4life@gmail.com</h2>
       <!--  <form class="grid grid-cols-1 sm:grid-cols-2 gap-6"> !-->
@@ -238,8 +402,9 @@
     </div>
   </section> 
 
+
   <!-- FOOTER -->
-  <footer class="bg-[var(--clr-card)] py-6 text-center text-sm text-gray-400">
+  <footer class="bg-[#001f3f] py-6 text-center text-sm text-gray-400">
     <div class="max-w-6xl mx-auto px-4">
       © 2025 Null Cactus Software Solutions. All rights reserved.
     </div>
