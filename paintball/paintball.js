@@ -5,7 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let baseBulletDamage    = 30;        // The starting damage of each shot
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
+  let currentEXP   = 0;
+  let currentLevel = 1;
+  
 
+
+  const expToNext   = () => 100 * currentLevel;  // example: 100 × level
   const baseInterval      = 3000;      // Initial delay (ms) between enemy spawn waves
   const minInterval       = 500;       // Fastest possible spawn delay (ms) after ramp‐up
   const decayRate         = 0.0005;    // Linear interpolation rate for spawn delay ramp
@@ -14,6 +19,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const lateDecayRate     = 0.0000231;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
   const lateMinInterval   = 25;        // Hard lower-bound on spawn delay in the late phase (ms)
   let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
+  
+  // ─── UI REFERENCES ──────────────────────────────
+  const ui             = document.getElementById('ui');
+  const startBtn       = document.getElementById('startBtn');
+  const restartBtn     = document.getElementById('restartBtn');
+  const upgradePanel   = document.getElementById('upgradePanel');
+  const upGold         = document.getElementById('upGold');
+  const expBarContainer= document.getElementById('expBarContainer');
+  const abilityPanel   = document.getElementById('abilityPanel');
+  const expAbilityPanel = document.getElementById('expAbilityPanel');
+  const expFill         = document.getElementById('expFill');
+  const expText         = document.getElementById('expText');
+
+  expAbilityPanel.style.display = 'none';  // hide until game start
+
 
 
   
@@ -140,12 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let bossBullets = [];
 
 
-  // ─── UI REFERENCES ──────────────────────────────
-  const ui      = document.getElementById('ui');
-  const startBtn= document.getElementById('startBtn');
-  const restartBtn = document.getElementById('restartBtn');
-  const upgradePanel = document.getElementById('upgradePanel');
-  const upGold  = document.getElementById('upGold');
+
+
 
   // ─── INITIALIZE BUTTONS ─────────────────────────
   startBtn.onclick = () => {
@@ -185,6 +201,11 @@ document.addEventListener('DOMContentLoaded', () => {
     baseBulletDamage = 30;
     currentWeapon = { damage:30, bullets:1, spread:0, reload:reloadDur, fireRate:300 };
     upgradePanel.style.display = 'block';
+    expAbilityPanel.style.display = 'flex';
+    updateEXPDisplay();  // draw initial “Level: 1 • EXP: 0”
+    expBarContainer.style.display = 'block';
+    abilityPanel.style.display    = 'flex';
+    
     initObjects();
     bullets = []; enemies = []; pickups = [];
     spawnStartTime = Date.now();
@@ -316,14 +337,7 @@ function spawnBoss(){
   });
 
 
-canvas.addEventListener('mouseup', () => {
-  clearInterval(shootIntervalId);
-});
 
-
-  canvas.addEventListener('mouseup', () => {
-    clearInterval(shootIntervalId);
-  });
 
 
   // ─── SHOOT & RELOAD ────────────────────────────
@@ -420,6 +434,7 @@ canvas.addEventListener('mouseup', () => {
         if (e.health <= 0) {
           if (e.isBoss) {
             score += 100;
+            addEXP(100);
             // boss kill reward
             const dropAmount = Math.floor(score/10);
             pickups.push({
@@ -432,6 +447,7 @@ canvas.addEventListener('mouseup', () => {
             } 
             else {
             score += 10;
+            addEXP(10);
             // spawn regular pickups…
             let r = Math.random(), type = null;
             if (r < 0.5)        type = null;
@@ -551,7 +567,10 @@ canvas.addEventListener('mouseup', () => {
     gameStarted = false;
     document.getElementById('finalScore').textContent = score;
     document.getElementById('gameOver').style.display = 'block';
+    expBarContainer.style.display = 'none';
+    abilityPanel.style.display    = 'none';
     upgradePanel.style.display = 'none';
+    expAbilityPanel.style.display = 'none';
     saveHigh(score);
   }
 
@@ -781,4 +800,71 @@ function renderLeader(){
 }
 
   loadHighs();
+
+
+    // — EXP BAR helper —
+  // call this whenever player gains XP:
+  function setExpPercent(pct) {   // pct: 0 → 100
+    document.getElementById('expBarInner').style.width = pct + '%';
+  }
+
+  // when you bind click on the slots:
+  document.querySelectorAll('.ability-slot').forEach(slot => {
+    slot.addEventListener('click', () => {
+      const idx = slot.dataset.slot;
+      console.log(`Activate ability #${idx}`);
+      // TODO: hook your real ability‐activation here
+    });
+  });
+
+
+// ---- keyboard → ability pop ------------------------------------
+document.addEventListener('keydown', e => {
+  if (!gameStarted) return;                 // only once the game is live
+  if (!['1', '2', '3', '4'].includes(e.key)) return;
+
+  const slot = document.querySelector(
+      `.ability-slot[data-slot="${e.key}"]`
+  );
+  if (!slot) return;
+
+  // trigger whatever ability click you already wired
+  slot.click();
+
+  // POP animation driven by Web-Animations API
+  // (150 ms scale-up + colour flash, then auto-reverts)
+  slot.animate(
+    [
+      { transform: 'scale(1)',   backgroundColor: '#2A2C33' },
+      { transform: 'scale(1.35)', backgroundColor: '#4A90E2', offset: 0.5 },
+      { transform: 'scale(1)',   backgroundColor: '#2A2C33' }
+    ],
+    { duration: 150, easing: 'ease-out' }
+  );
+});
+
+
+
+
+
+
+
+  function updateEXPDisplay() {
+    const pct = (currentEXP / expToNext()) * 100;
+    expFill.style.width = pct + '%';
+    expText.textContent = `Level: ${currentLevel} • EXP: ${currentEXP}`;
+  }
+
+  function addEXP(amount) {
+    currentEXP += amount;
+    while (currentEXP >= expToNext()) {
+      currentEXP -= expToNext();
+      currentLevel++;
+    }
+    updateEXPDisplay();
+  }
+
+  
+  
+
 });
