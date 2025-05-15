@@ -12,11 +12,8 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Paintball</title>
+  <title>Null.io Paintball</title>
   <link rel="stylesheet" href="paintball.css">
-    <!-- Add this inside the <head> of paintball.html -->
-<meta name="description" content="Paintball Panic is a fast-paced top-down shooter where you fend off waves of colorful enemies in a paint-splattered arena. Upgrade your health, damage, magazine size, fire-rate, and even unlock magnetic loot pulls to stay alive longer. Face off against surprising boss encounters, dart between cover, and collect ammo, health, and gold to climb the leaderboard. Dive in for heart-pounding action and prove you’re the ultimate paintball champion!" />
-
 </head>
 <body>
   <header id="mainHeader">
@@ -86,8 +83,31 @@
       <button class="weapon-btn" data-weapon="sniper">Sniper — 30 g</button>
     </div>
   </div>
+  
+
+
+
+
+
+
 
   <canvas id="game"></canvas>
+
+
+  <!-- ─── EXP & ABILITY PANEL (hidden until game start) ─── -->
+  <div id="expAbilityPanel" class="ability-panel" style="display:none">
+    <div id="expBarContainer">
+      <div id="expBar"><div id="expFill"></div></div>
+      <span id="expText">Level: 1 • EXP: 0</span>
+    </div>
+  <div id="abilityPanel" class="ability-buttons">
+    <button class="ability-slot" data-slot="1">1</button>
+    <button class="ability-slot" data-slot="2">2</button>
+    <button class="ability-slot" data-slot="3">3</button>
+    <button class="ability-slot" data-slot="4">4</button>
+  </div>
+
+
   <script src="paintball.js"></script>
 </body>
 </html>
