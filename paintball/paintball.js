@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const lateMinInterval   = 25;        // Hard lower-bound on spawn delay in the late phase (ms)
   let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
 
+
+  
   // ─── MAGNETIC PICKUP ─────────────────────────────────
   let   pickupRadius      = 40;        // How far (px) loot will be magnetically pulled in
   const maxPickupRadius   = 600;       // Absolute cap on pickupRadius
@@ -32,11 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
     magnet: { cost: 6, apply: () => {pickupRadius = Math.min(maxPickupRadius, pickupRadius + 20);}}
 
   };
-  const weapons = {
-    buckshot:{ cost:10, damage:15, bullets:7, spread:0.5,  reload:800,  fireRate:300 },
-    minigun: { cost:20, damage:5,  bullets:1, spread:0.15, reload:1500, fireRate:50  },
-    sniper:  { cost:30, damage:10000,bullets:1, spread:0,    reload:2000, fireRate:800 }
+    const weapons = {
+    buckshot:{ cost:10, damage:15, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
+    minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
+    sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 }
   };
+
+  // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
+  let currentWeaponKey = 'buckshot';
+  let currentWeapon    = { ...weapons.buckshot };
+  let shootIntervalId  = null;
+
   const enemyTypes = {
     grunt:      { size:40,  health:80,  speed:1.5, color:'#D0021B', weight:40 },
     runner:     { size:30,  health:50,  speed:2.5, color:'#F5A623', weight:30 },
@@ -51,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
     spitter:    { size:55,  health:80,  speed:1.1, color:'#7FFF00', weight:6,  ranged:true, spitDamage:10 },
     shieldbearer:{size:70,  health:150, speed:1.0, color:'#1E90FF', weight:7,  shield:50 }
   };
+
+  
 
     // ─── DEFINE MULTIPLE BOSS TYPES ────────────────────
   enemyTypes.basicBoss = {
@@ -124,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let player, keys = {}, bullets = [], enemies = [], objects = [], pickups = [];
   let score = 0, reserve = maxReserve, gold = 0;
   let ammo = magSize, reloading = false, reloadStart = 0, reloadDur = 1000;
-  let currentWeapon = { damage:30, bullets:1, spread:0, reload:reloadDur, fireRate:300 };
+  
   let gameStarted = false;
   let highs = [];
   let bossBullets = [];
@@ -159,7 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (wKey && weapons[wKey] && gold >= weapons[wKey].cost) {
       gold -= weapons[wKey].cost;
-      currentWeapon = { ...weapons[wKey] };
+      currentWeapon    = { ...weapons[wKey] };
+      currentWeaponKey = wKey;    // ← track the key for auto‐fire logic
     }
     refreshPanel();
   });
@@ -288,9 +299,32 @@ function spawnBoss(){
       e.clientX - (player.x - viewX)
     );
   });
+   // new: start shooting on mousedown
   canvas.addEventListener('mousedown', () => {
-    if (gameStarted && ammo > 0 && !reloading) shoot();
+    if (!gameStarted || ammo <= 0 || reloading) return;
+    shoot();
+    if (currentWeaponKey === 'minigun') {
+      clearInterval(shootIntervalId);
+      shootIntervalId = setInterval(() => {
+        if (ammo > 0 && !reloading) shoot();
+        else                      clearInterval(shootIntervalId);
+      }, currentWeapon.fireRate);
+    }
   });
+  canvas.addEventListener('mouseup', () => {
+    clearInterval(shootIntervalId);
+  });
+
+
+canvas.addEventListener('mouseup', () => {
+  clearInterval(shootIntervalId);
+});
+
+
+  canvas.addEventListener('mouseup', () => {
+    clearInterval(shootIntervalId);
+  });
+
 
   // ─── SHOOT & RELOAD ────────────────────────────
   function shoot() {
@@ -308,6 +342,8 @@ function spawnBoss(){
     reloading = true;
     reloadStart = Date.now();
   }
+
+
 
   // ─── UPDATE ────────────────────────────────────
   let viewX = 0, viewY = 0;
@@ -343,6 +379,11 @@ function spawnBoss(){
     ammo = take; 
     updateUI();
   }
+   // auto-shoot if holding and minigun equipped
+
+  
+
+
 
   // ─── ENEMY MOVEMENT ────────────────────────────────────────────
   enemies.forEach(e => {
@@ -414,7 +455,7 @@ function spawnBoss(){
 
     if (hitSomething) continue;
   }
-w
+
   // ─── MOVE + COLLIDE bossBullets ────────────────────
   bossBullets.forEach((b,i) => {
     // homing adjustment
@@ -543,6 +584,9 @@ w
       });
     }
   });
+
+
+  
 }
 
 
