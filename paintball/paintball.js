@@ -26,10 +26,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   const bladeOrbitCfg = {
-  radius : 60,      // distance from player  (px)
+  radius : 100,      // distance from player  (px)
   speed  : 0.08,    // rotation speed        (radians / frame)
-  damage : 12       // damage per touch
+  baseDamage : 12       // damage per touch
 };
+
+/* ─── INSANITY STATE ───────────────────────────── */
+let damageMultiplier = 1;
+const baseSpeed = 4;             // player default
+let poisonTimer  = 0;            // ms accumulator
+let hue          = 0;            // for RGB cycling
+let trails = [];          // {x,y,hue,life}
+const TRAIL_LIFE = 25;    // frames
+
 
   
   
@@ -87,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Define abilities
   const abilities = {
-    1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 3, active: false },
-    2: { name: '—',          unlockLevel: 10 }, // placeholder
+    1: { name: 'Blade Orbit', unlockLevel: 2, level: 0, maxLevel: 5, active: false },
+    2: { name: 'Insanity',    unlockLevel: 4, level: 0, maxLevel: 5, active: false },
     3: { name: '—',          unlockLevel: 15 },
     4: { name: '—',          unlockLevel: 20 }
   };
@@ -409,7 +418,7 @@ function spawnBoss(){
     player.lastShot = now;
     for (let i = 0; i < currentWeapon.bullets; i++) {
       const ang = player.angle + (Math.random() - 0.5) * currentWeapon.spread;
-      bullets.push({ x: player.x, y: player.y, ang, spd:14, size:8, damage: currentWeapon.damage });
+      bullets.push({ x: player.x, y: player.y, ang, spd:14, size:8,damage: currentWeapon.damage * damageMultiplier });
     }
     ammo--; updateUI();
     if (ammo === 0) startReload();
@@ -423,7 +432,7 @@ function spawnBoss(){
 
   // ─── UPDATE ────────────────────────────────────
   let viewX = 0, viewY = 0;
-  function update() {
+  function update() { 
   if (!player) return;
   // ─── PLAYER MOVEMENT & COLLISIONS ─────────────────────────────
   if (keys['w']) player.y -= player.speed;
@@ -573,6 +582,10 @@ function spawnBoss(){
     ) {
       bossBullets.splice(i,1);
     }
+
+    trails.forEach(t => t.life--);
+    trails = trails.filter(t => t.life > 0);
+
   });
 
 
@@ -704,13 +717,31 @@ function spawnBoss(){
       );
     });
 
+    trails.forEach(t => {
+      const alpha = t.life / TRAIL_LIFE;
+      ctx.fillStyle = `hsla(${t.hue},100%,55%,${alpha})`;
+      ctx.fillRect(
+        t.x - viewX - player.size/2,
+        t.y - viewY - player.size/2,
+        player.size, player.size
+      );
+    });
+
+
     // ─── PLAYER ─────────────────────────────────────────
     const px = player.x - viewX,
           py = player.y - viewY;
+  
+    const insaneActive = abilities[2].active && abilities[2].level > 0;
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(player.angle);
-    ctx.fillStyle = '#4A90E2';
+    ctx.fillStyle = insaneActive
+                    ? `hsl(${hue},100%,55%)`
+                    : '#4A90E2';
+
+                
+                 
     ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
     ctx.restore();
 
@@ -763,8 +794,9 @@ function spawnBoss(){
     ctx.strokeStyle = '#fafafa';
     ctx.lineWidth = 2;
 
-    for (let i = 0; i < 2; i++) {
-      const ang = orbitAngle + i * Math.PI;
+    const bladeCount = 2 + (blade.level - 1);
+    for (let i = 0; i < bladeCount; i++) {
+     const ang = orbitAngle + i * (Math.PI * 2 / bladeCount);
       const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
       const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
 
@@ -963,23 +995,53 @@ function renderLeader(){
   function updateAbilities() {
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
+    const bladeCount = 2 + (a.level - 1);                    // +1 each rank
+    const bladeDmg   = bladeOrbitCfg.baseDamage + 35 * (a.level - 1);
 
-    orbitAngle += bladeOrbitCfg.speed;                // spin
+  orbitAngle += bladeOrbitCfg.speed;
 
-    for (let i = 0; i < 2; i++) {
-      const ang = orbitAngle + i * Math.PI;           // 180° apart
-      const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
-      const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
+  for (let i = 0; i < bladeCount; i++) {
+    const ang = orbitAngle + i * (Math.PI * 2 / bladeCount);
+    const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
+    const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
 
-      /* damage check */
-      for (let j = enemies.length - 1; j >= 0; j--) {
-        const e = enemies[j];
-        if (dist(tx, ty, e.x, e.y) < 18) {
-          e.health -= bladeOrbitCfg.damage * a.level;
-          if (e.health <= 0) handleEnemyDeath(j);
-        }
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      if (dist(tx, ty, e.x, e.y) < 18) {
+        e.health -= bladeDmg * damageMultiplier;
+        if (e.health <= 0) handleEnemyDeath(j);
       }
     }
+  }
+    const ins = abilities[2];
+  if (ins && ins.active && ins.level > 0) {
+
+    /* multiplier: 1 + 2×level  ⇒ 3,5,7,9,11  */
+    damageMultiplier = 1 + 2 * ins.level;
+
+    /* speed ×2 while active */
+    player.speed = baseSpeed * 2;
+
+    /* 5 HP poison per second */
+    poisonTimer += 16;                   // ≈ frame time
+    if (poisonTimer >= 1000) {
+      if (player.health > 5) player.health -= 5;   // never drop below 1
+      else {abilities[2].active = false;              // auto-toggle off
+        damageMultiplier    = 1;
+        player.speed        = baseSpeed;
+      }
+      poisonTimer = 0;
+    }
+
+    /* colour-cycle */
+    hue = (hue + 3) % 360;               // adjust rate here
+    trails.push({ x: player.x, y: player.y, hue, life: TRAIL_LIFE });
+
+  } else {
+    damageMultiplier = 1;
+    player.speed     = baseSpeed;
+    hue              = 0;
+  }
   }
 
   function drawOrbitTriangles() {
