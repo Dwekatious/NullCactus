@@ -5,7 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let baseBulletDamage    = 30;        // The starting damage of each shot
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
- 
+    /* ─── PLAYER CONFIG ───────────────────────────── */
+  const BASE_PLAYER_HP = 100;   // <— add this with the other globals
+  let lastBlockerTime     = 0;
+  let lastEruptionTime    = 0;
+  let lastDifficultyTime  = 0;
   // ─── EXP & LEVEL SYSTEM ────────────────────────────
   let currentEXP   = 0;
   let currentLevel = 1;
@@ -14,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
   function calcNextEXP(level) {        // simple linear scaling
     return 100 * level;
   }
+
+
+  // oil stuff
+  const OIL_LIFETIME = 10_000;            // ms before disappearing
+  const OIL_W        = 280;               // doubled width
+  const OIL_H        = 80;                // doubled height
   // Called to refresh progress bar and text
   function updateEXPDisplay() {
     expText.textContent = `Level: ${player.level} • EXP: ${currentEXP}`;
@@ -26,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   const bladeOrbitCfg = {
-  radius : 100,      // distance from player  (px)
+  radius : 130,      // distance from player  (px)
   speed  : 0.08,    // rotation speed        (radians / frame)
   baseDamage : 12       // damage per touch
 };
@@ -39,7 +49,18 @@ let hue          = 0;            // for RGB cycling
 let trails = [];          // {x,y,hue,life}
 const TRAIL_LIFE = 25;    // frames
 
+/* ─── DIFFICULTY MODES ───────────────────────── */
+const modes = [
+  { t:   0, name: 'normal',   bg:'#121418' },
+  { t: 150, name:'purgatory', bg:'#3b3b3b' },   // 2.5 min
+  { t: 300, name:'abyss',     bg:'#301840' },   // 5 min
+  { t: 450, name:'inferno',   bg:'#440000' }    // 7.5 min
+];
 
+let curMode = modes[0];
+let flyIns   = [];          // purgatory projectiles
+let oilPuddles = [];            // abyss oil puddles  <— leave the name
+let eruptions= [];          // inferno fire‐storms
   
   
 
@@ -50,10 +71,8 @@ const TRAIL_LIFE = 25;    // frames
   const decayRate         = 0.0005;    // Linear interpolation rate for spawn delay ramp
   const rampDuration      = 500_000;   // 5 minutes (ms) over which spawn delay linearly goes from baseInterval→minInterval
   const latePhaseStart    = rampDuration; // Alias: when to switch from “ramp” mode into “late phase”
-  const lateDecayRate     = 0.0000231;     // Exponential‐decay rate for spawn delay once you’re past rampDuration
-  const lateMinInterval   = 25;        // Hard lower-bound on spawn delay in the late phase (ms)
-  let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
-  
+  let   lateDecayRate   = 0.0000231;   // Exponential-decay rate (mutable)  let   latePhaseTriggered= false;     // Has the game entered late-phase yet?
+  const lateMinInterval = 25;          // hard lower bound on delay
   // ─── UI REFERENCES ──────────────────────────────
   const ui             = document.getElementById('ui');
   const startBtn       = document.getElementById('startBtn');
@@ -246,8 +265,8 @@ const TRAIL_LIFE = 25;    // frames
     size: 40,
     angle: 0,
     speed: 4,
-    health: 100,
-    maxHealth: 100,
+    health: BASE_PLAYER_HP,
+    maxHealth: BASE_PLAYER_HP,
     level: 1
   };
   score = gold = 0;
@@ -339,47 +358,89 @@ function spawnBoss(){
     }
   }
 
-  function spawnEnemy() {
-    const t = score / 50;
-    const order = Object.keys(enemyTypes);
-    let maxTier = Math.min(Math.floor(t/2), order.length - 1);
-    const unlocked = order.slice(0, maxTier + 1);
-    let pool = [];
-    unlocked.forEach(key => {
-      for (let i = 0; i < enemyTypes[key].weight; i++) pool.push(key);
-    });
-    const typeKey = pool[Math.floor(Math.random() * pool.length)];
-    const def = enemyTypes[typeKey];
-    const x = Math.random()*(mapSize-def.size)+def.size/2;
-    const y = Math.random()*(mapSize-def.size)+def.size/2;
-    enemies.push({
-      x, y, size: def.size,
-      health: def.health, maxHealth: def.health,
-      speed: def.speed, color: def.color, type: typeKey
-    });
+function spawnEnemy() {
+  const t       = score / 50;
+  const order   = Object.keys(enemyTypes);
+  const maxTier = Math.min(Math.floor(t / 2), order.length - 1);
+
+  /* weighted pool for variety */
+  const pool = [];
+  order.slice(0, maxTier + 1).forEach(k => {
+    for (let i = 0; i < enemyTypes[k].weight; i++) pool.push(k);
+  });
+  /* shuffle once, pick first */
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = (Math.random() * (i + 1)) | 0;
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const typeKey = pool[0];
+  const def     = enemyTypes[typeKey];
+
+  const x = Math.random() * (mapSize - def.size) + def.size / 2;
+  const y = Math.random() * (mapSize - def.size) + def.size / 2;
+
+  /* buffs scale with difficulty */
+  const diff       = difficultyT(Date.now() - spawnStartTime);
+  const hpBuff     = 1 + diff * 0.4;   // up to ×2.6
+  const speedBuff  = 1 + diff * 0.15;  // up to ×1.6
+
+  enemies.push({
+    x, y,
+    size: def.size,
+    health:    def.health * hpBuff,
+    maxHealth: def.health * hpBuff,
+    speed:     def.speed  * speedBuff,
+    color:     def.color,
+    type:      typeKey
+  });
+}
+
+
+/* difficulty helper – 0 → 4 curve shaped like the sketch */
+function difficultyT(elapsedMs) {
+  const m = elapsedMs / 60000;          // minutes
+  if (m <= 5)  return m / 5;            // 0–1  gentle → steep bump
+  if (m <= 10) return 1;                // flat plateau
+  if (m <= 15) return 1 + (m - 10) / 5; // 1–2 steady climb
+  /* 15-20 min: quadratic spike → 4 */
+  return 2 + Math.pow((m - 15) / 5, 2) * 2;
+}
+
+/* ─── NEW SPAWN-SCHEDULER ─────────────────────────── */
+function scheduleNextSpawn() {
+  const now       = Date.now();
+  const elapsedMs = now - spawnStartTime;
+  const elapsed   = elapsedMs / 1000; // seconds
+
+  updateMode(elapsed);
+
+  // ─── DIFFICULTY SCALAR ───────────────────────────────
+  // starts harder (0.6 instead of 0.4) and scales up via your curve
+  const diff = 0.6 + difficultyT(elapsedMs);
+
+  // ─── BASE WAVE & DELAY ────────────────────────────────
+  // more aggressive scaling: ×2 instead of ×1.5
+  let baseDelay = 3000 / (1 + diff * 2);      // from 3000→~375ms at peak
+  let baseWave  = 1 + Math.floor(diff * 1.5); // from 1→7 waves
+
+  // ─── INFERNO MODE DOUBLE EVERY 30s ───────────────────
+  if (curMode.name === 'inferno') {
+    // how many 30s-intervals have passed in Inferno
+    const bursts = Math.floor(elapsed / 30);
+    const boost  = Math.pow(2, bursts);  // 2×, 4×, 8×, ...
+    baseDelay /= boost;                  // faster spawns
+    baseWave  *= boost;                  // more per wave
   }
 
-  function scheduleNextSpawn() {
-    const elapsed = Date.now() - spawnStartTime;
-    if (!latePhaseTriggered && elapsed >= rampDuration) {
-      latePhaseTriggered = true;
-      document.body.classList.add('late-phase');
-    }
-    let interval;
-    if (elapsed <= rampDuration) {
-      const t = elapsed / rampDuration;
-      interval = baseInterval + t * (minInterval - baseInterval);
-    } else {
-      const lateTime = elapsed - latePhaseStart;
-      interval = minInterval * Math.exp(-lateDecayRate * lateTime);
-      interval = Math.max(interval, lateMinInterval);
-    }
-    setTimeout(() => {
-      const count = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < count; i++) spawnEnemy();
-      scheduleNextSpawn();
-    }, interval);
-  }
+  setTimeout(() => {
+    // fire off the wave
+    for (let i = 0; i < baseWave; i++) spawnEnemy();
+    // schedule next
+    scheduleNextSpawn();
+  }, baseDelay);
+}
+
+
 
   // ─── INPUT HANDLING ────────────────────────────
   document.addEventListener('keydown', e => keys[e.key] = true);
@@ -428,120 +489,188 @@ function spawnBoss(){
     reloadStart = Date.now();
   }
 
+  
+/* ─── PURGATORY: flying spikes ─────────── */
+function spawnFlyingInsanity(){
+  const ang = Math.random()*Math.PI*2;
+  flyIns.push({
+    x: player.x + Math.cos(ang)*1200,
+    y: player.y + Math.sin(ang)*1200,
+    vx: -Math.cos(ang)*9,
+    vy: -Math.sin(ang)*9,
+    life: 400          // frames
+  });
+}
+
+/* ─── ABYSS: blocking pillars ──────────── */
+  function spawnOilPuddle() {
+    if (oilPuddles.length >= 5) return;    // ← never more than 5 puddles
+    const ang  = player.angle + (Math.random() - 0.5) * 0.8;
+    const dist = 260 + Math.random() * 120;
+    oilPuddles.push({
+      x:    player.x + Math.cos(ang) * dist,
+      y:    player.y + Math.sin(ang) * dist,
+      w:    120,      // make them a bit larger if you like
+      h:    120,
+      rot:  ang,
+      born: Date.now()
+    });
+  }
+// in your blockers‐cleanup (already in update):
+oilPuddles = oilPuddles.filter(b => Date.now() - b.born < 10000 + Math.random() * 5000);
+
+/* ─── INFERNO: fire sweeps ─────────────── */
+function spawnEruption(){
+  const vertical = Math.random()<0.5;
+  const pos = vertical ? {x:Math.random()*mapSize,y:-200} :
+                         {x:-200,y:Math.random()*mapSize};
+  eruptions.push({
+    ...pos, vertical,
+    speed: 10,
+    life: 450
+  });
+  }
 
 
-  // ─── UPDATE ────────────────────────────────────
-  let viewX = 0, viewY = 0;
-  function update() { 
+
+ let viewX = 0, viewY = 0;
+function update() {
   if (!player) return;
-  // ─── PLAYER MOVEMENT & COLLISIONS ─────────────────────────────
+
+  // ─── TIMING & DIFFICULTY ─────────────────────────────
+  const now        = Date.now();
+  const elapsedMs  = now - spawnStartTime;
+  const elapsedSec = elapsedMs / 1000;
+  updateMode(elapsedSec);
+
+  // ─── OIL PUDDLE SLOWDOWN ─────────────────────────────
+  // 'oilPuddles' are now oil puddles
+  let inOil = false;
+  oilPuddles.forEach(b => {
+    const dx  = player.x - b.x;
+    const dy  = player.y - b.y;
+    const sin = Math.sin(b.rot);
+    const cos = Math.cos(b.rot);
+    // project into puddle local space
+    const localX = Math.abs(dx * cos + dy * sin);
+    const localY = Math.abs(-dx * sin + dy * cos);
+    if (localX < b.w/2 && localY < b.h/2) {
+      inOil = true;
+    }
+  });
+
+  // ─── INSANITY SPEED MULTIPLIER ────────────────────────
+  // baseSpeed ×2 if Insanity is active, otherwise baseSpeed
+  const base     = baseSpeed * (abilities[2].active ? 2 : 1);
+  // oil puddle cuts speed in half
+  player.speed  = inOil ? base * 0.5 : base;
+
+  // ─── PLAYER MOVEMENT ──────────────────────────────────
   if (keys['w']) player.y -= player.speed;
   if (keys['s']) player.y += player.speed;
   if (keys['a']) player.x -= player.speed;
   if (keys['d']) player.x += player.speed;
 
+  // ─── COLLIDE WITH STATIC OBJECTS ──────────────────────
   objects.forEach(o => {
-    const dx = player.x - o.x, dy = player.y - o.y;
+    const dx   = player.x - o.x;
+    const dy   = player.y - o.y;
     const dist = player.size/2 + o.size/2;
-    if (Math.hypot(dx,dy) < dist) {
-      const ang = Math.atan2(dy,dx);
-      player.x = o.x + Math.cos(ang)*dist;
-      player.y = o.y + Math.sin(ang)*dist;
+    if (Math.hypot(dx, dy) < dist) {
+      const ang = Math.atan2(dy, dx);
+      player.x = o.x + Math.cos(ang) * dist;
+      player.y = o.y + Math.sin(ang) * dist;
     }
   });
 
-  // ─── BOUNDS & CAMERA ───────────────────────────────────────────
-  player.x = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.x));
-  player.y = Math.max(player.size/2, Math.min(mapSize-player.size/2, player.y));
-  viewX = Math.max(0, Math.min(mapSize-w, player.x-w/2));
-  viewY = Math.max(0, Math.min(mapSize-h, player.y-h/2));
+  // ─── BOUNDS & CAMERA ─────────────────────────────────
+  player.x = Math.max(player.size/2,
+              Math.min(mapSize-player.size/2, player.x));
+  player.y = Math.max(player.size/2,
+              Math.min(mapSize-player.size/2, player.y));
+  viewX    = Math.max(0,
+              Math.min(mapSize-w, player.x - w/2));
+  viewY    = Math.max(0,
+              Math.min(mapSize-h, player.y - h/2));
 
-  // ─── RELOAD FINISH ─────────────────────────────────────────────
-  if (reloading && Date.now() - reloadStart >= reloadDur) {
+  // ─── MODE-SPECIFIC SPAWNS ────────────────────────────
+  // PURGATORY (2.5–5m): random spikes
+  if (curMode.name === 'purgatory' && Math.random() < 0.015) {
+    spawnFlyingInsanity();
+    lastBlockerTime = now;
+  }
+  // ABYSS (5–7.5m): one oil puddle every 1–2s
+  if (curMode.name === 'abyss') {
+    if (now - lastBlockerTime > 1000 + Math.random() * 1000) {
+      spawnOilPuddle();
+      lastBlockerTime = now;
+    }
+  }
+  // INFERNO (7.5–10m):
+  if (curMode.name === 'inferno') {
+    // - eruption every 3–5s
+    if (now - lastEruptionTime > 3000 + Math.random() * 2000) {
+      spawnEruption();
+      lastEruptionTime = now;
+    }
+    // - double spawn rate every 30s
+    if (elapsedMs - lastDifficultyTime > 30000) {
+      increaseDifficulty();
+      lastDifficultyTime = elapsedMs;
+    }
+  }
+
+  // ─── RELOAD FINISH ────────────────────────────────────
+  if (reloading && now - reloadStart >= reloadDur) {
     reloading = false;
     const take = Math.min(magSize, reserve);
-    reserve -= take; 
-    ammo = take; 
+    reserve   -= take;
+    ammo       = take;
     updateUI();
   }
-   // auto-shoot if holding and minigun equipped
 
-  
-
-
-
-  // ─── ENEMY MOVEMENT ────────────────────────────────────────────
+  // ─── ENEMY MOVEMENT ──────────────────────────────────
   enemies.forEach(e => {
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
     e.x += Math.cos(ang) * e.speed;
     e.y += Math.sin(ang) * e.speed;
   });
 
-  // ─── PLAYER BULLETS → ENEMIES & BOSS ───────────────────────────
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    // 1) MOVE
-    b.x += Math.cos(b.ang) * b.spd;
-    b.y += Math.sin(b.ang) * b.spd;
+// ─── BULLET COLLISIONS ───────────────────────────────
+for (let i = bullets.length - 1; i >= 0; i--) {
+  const b = bullets[i];
 
-    // 2) OUT OF BOUNDS?
-    if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
-      bullets.splice(i, 1);
-      continue;
-    }
+  /* 1) MOVE BULLET */
+  b.x += Math.cos(b.ang) * b.spd;
+  b.y += Math.sin(b.ang) * b.spd;
 
-    // 3) COLLIDE WITH ANY ENEMY (regular or boss)
-    let hitSomething = false;
-    for (let j = enemies.length - 1; j >= 0; j--) {
-      const e = enemies[j];
-      const dx = b.x - e.x, dy = b.y - e.y;
-      if (Math.hypot(dx, dy) < b.size + e.size/2) {
-        // DAMAGE
-        e.health -= b.damage;
-        bullets.splice(i, 1);
-        hitSomething = true;
-
-        // IF KILLED
-        if (e.health <= 0) {
-          if (e.isBoss) {
-            score += 100;
-            addEXP(100);
-            // boss kill reward
-            const dropAmount = Math.floor(score/10);
-            pickups.push({
-              x: e.x,
-              y: e.y,
-              size: 20,
-              type: 'gold',
-              value: dropAmount
-            });
-            } 
-            else {
-            score += 10;
-            addEXP(10);
-            // spawn regular pickups…
-            let r = Math.random(), type = null;
-            if (r < 0.5)        type = null;
-            else if (r < 0.8)   type = 'gold';
-            else if (r < 0.95)  type = 'ammo';
-            else                type = 'health';
-            if (type) {
-              const val = 
-                type==='ammo'   ? 100 :
-                type==='health'?  30 :
-                (e.size>60?10:e.size>40?5:2);
-              pickups.push({ x:e.x, y:e.y, size:20, type, value:val });
-            }
-          }
-          enemies.splice(j, 1);
-        }
-        break;
-      }
-      
-    }
-
-    if (hitSomething) continue;
+  /* 2) DESPAWN IF OUT OF MAP */
+  if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
+    bullets.splice(i, 1);
+    continue;                    // ✅ still inside the bullet-loop
   }
+
+  /* 3) HIT-TEST ALL ENEMIES */
+  for (let j = enemies.length - 1; j >= 0; j--) {
+    const e = enemies[j];
+    if (dist(b.x, b.y, e.x, e.y) < b.size + e.size / 2) {
+
+      // damage & delete bullet
+      e.health -= b.damage;
+      bullets.splice(i, 1);
+
+      if (e.health <= 0) handleEnemyDeath(j);   // central kill handler
+      break;                // bullet is gone, no need to check others
+    }
+  }
+  }
+
+
+
+
+
+    
+  
 
   // ─── MOVE + COLLIDE bossBullets ────────────────────
   bossBullets.forEach((b,i) => {
@@ -612,6 +741,8 @@ function spawnBoss(){
     }
   });
 
+
+
   // ─── MAGNETIC PULL ─────────────────────
   pickups.forEach(p=>{
     const dx = player.x - p.x,
@@ -648,6 +779,30 @@ function spawnBoss(){
     expAbilityPanel.style.display = 'none';
     saveHigh(score);
   }
+  
+
+
+  /* move + collide flying spikes */
+  flyIns.forEach((s,i)=>{
+    s.x+=s.vx; s.y+=s.vy; s.life--;
+    if(dist(s.x,s.y,player.x,player.y)<30){ player.health-=40; flyIns.splice(i,1); }
+    if(s.life<=0)flyIns.splice(i,1);
+  });
+
+  /* oilPuddles decay */
+  oilPuddles = oilPuddles.filter(p => Date.now() - p.born < OIL_LIFETIME);
+
+  /* eruptions sweep */
+  eruptions.forEach((e,i)=>{
+    if(e.vertical) e.y+=e.speed; else e.x+=e.speed;
+    e.life--;
+    /* damage zone 200px wide behind front */
+    const hit = e.vertical ?
+        player.y>e.y-200 && player.y<e.y+20 :
+        player.x>e.x-200 && player.x<e.x+20;
+    if(hit) player.health-=60;
+    if(e.life<=0) eruptions.splice(i,1);
+  });
 
   updateUI();
 
@@ -680,8 +835,8 @@ function spawnBoss(){
   });
   updateAbilities();
 
-  
 }
+
 
 
   // ─── DRAW ───────────────────────────────────────
@@ -689,7 +844,7 @@ function spawnBoss(){
     if (!player) return;
 
     // ─── BACKGROUND & GRID ─────────────────────────────
-    ctx.fillStyle = latePhaseTriggered ? '#440000' : '#121418';
+    ctx.fillStyle = curMode.bg;   // use current mode colour
     ctx.fillRect(0, 0, w, h);
 
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
@@ -707,6 +862,63 @@ function spawnBoss(){
       ctx.stroke();
     }
 
+      /* oilPuddles */
+    ctx.fillStyle = 'rgba(30, 80, 30, 0.6)'; // oily green
+    oilPuddles.forEach(b => {
+      ctx.save();
+      ctx.translate(b.x - viewX, b.y - viewY);
+      ctx.rotate(b.rot);
+      ctx.fillRect(-b.w/2, -b.h/2, b.w, b.h);
+      ctx.restore();
+    });
+    /* flying spikes */
+    ctx.fillStyle='crimson';
+    flyIns.forEach(s=>{
+      ctx.beginPath();
+      ctx.arc(s.x-viewX,s.y-viewY,12,0,Math.PI*2);
+      ctx.fill();
+    });
+
+/* eruptions (with fade & hue shift) */
+eruptions.forEach(e => {
+  ctx.save();
+  // fade out as e.life ticks down
+  ctx.globalAlpha = 0.6 * (e.life / 450);
+  // subtle hue shift per eruption
+  ctx.fillStyle   = `hsl(${30 + Math.random() * 10},100%,50%)`;
+
+  if (e.vertical) {
+    ctx.fillRect(
+      e.x - viewX - 100,
+      e.y - viewY - 200,
+      200,
+      220
+    );
+  } else {
+    ctx.fillRect(
+      e.x - viewX - 200,
+      e.y - viewY - 100,
+      220,
+      200
+    );
+  }
+
+  ctx.restore();
+});
+
+  // draw oil puddles with fade
+  oilPuddles.forEach(o => {
+    const age   = Date.now() - o.born;
+    const alpha = 1 - age / OIL_LIFETIME;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = 'rgba(40, 40, 20, 1)';  // a dark oily yellow
+    ctx.translate(o.x - viewX, o.y - viewY);
+    ctx.rotate(o.rot);
+    ctx.fillRect(-o.w/2, -o.h/2, o.w, o.h);
+    ctx.restore();
+  });
+
     // ─── MAP OBJECTS ────────────────────────────────────
     ctx.fillStyle = '#2A2C33';
     objects.forEach(o => {
@@ -716,6 +928,8 @@ function spawnBoss(){
         o.size, o.size
       );
     });
+
+
 
     trails.forEach(t => {
       const alpha = t.life / TRAIL_LIFE;
@@ -996,7 +1210,7 @@ function renderLeader(){
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
     const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage + 35 * (a.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage + 50 * (a.level - 1);
 
   orbitAngle += bladeOrbitCfg.speed;
 
@@ -1007,7 +1221,8 @@ function renderLeader(){
 
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
-      if (dist(tx, ty, e.x, e.y) < 18) {
+      if (dist(tx,ty,e.x,e.y) < (e.size/2)+12){   // radius-based
+        if (e.isBoss) bladeOrbitCfg.damage *= 1; // no change – radius test above now hits boss centre
         e.health -= bladeDmg * damageMultiplier;
         if (e.health <= 0) handleEnemyDeath(j);
       }
@@ -1025,7 +1240,7 @@ function renderLeader(){
     /* 5 HP poison per second */
     poisonTimer += 16;                   // ≈ frame time
     if (poisonTimer >= 1000) {
-      if (player.health > 5) player.health -= 5;   // never drop below 1
+      if (player.health > 10) player.health -= 10;   // never drop below 1
       else {abilities[2].active = false;              // auto-toggle off
         damageMultiplier    = 1;
         player.speed        = baseSpeed;
@@ -1035,7 +1250,10 @@ function renderLeader(){
 
     /* colour-cycle */
     hue = (hue + 3) % 360;               // adjust rate here
-    trails.push({ x: player.x, y: player.y, hue, life: TRAIL_LIFE });
+   if (ins && ins.active){
+    trails.push({x:player.x,y:player.y,hue,life:TRAIL_LIFE});
+    if (trails.length>150) trails.shift();
+    }
 
   } else {
     damageMultiplier = 1;
@@ -1142,5 +1360,67 @@ function dist(x1, y1, x2, y2) {
     skillPoints--;
     arrowEl.classList.remove('show');   // hide until next point
     refreshSkillArrows();
+  }
+
+
+  /* difficulty helper – returns 0-1 scalar */
+  function difficultyT(elapsed) {          // elapsed in ms
+    const m = elapsed / 60000;              // → minutes
+    if (m <= 5)   return m / 5;             // 0 → 1
+    if (m <= 10)  return 1;                 // plateau
+    if (m <= 15)  return 1 + (m - 10) / 5;  // 1 → 2
+    // 15-20: shoots up to 4
+    return 2 + Math.pow((m - 15) / 5, 2) * 2;   // 2 → 4 (quad curve)
+  }
+
+
+
+
+
+
+  function updateMode(elapsedSec){
+  const next = [...modes].reverse().find(m => elapsedSec >= m.t);
+  if (next !== curMode){
+    curMode = next;
+    document.body.style.background = next.bg;
+  }
+  }
+
+
+  function increaseDifficulty(){
+    baseBulletDamage *= 1.08;
+    lateDecayRate    *= 1.15;
+  }
+
+
+  function rectOverlap(a, b) {
+  const ra = Math.hypot(a.w, a.h) / 2;
+  const rb = Math.hypot(b.w, b.h) / 2;
+  return Math.hypot(a.x - b.x, a.y - b.y) < ra + rb;
+  }
+
+  function spawnOilPuddle() {
+  let tries = 0;
+  do {
+    const ang  = player.angle + (Math.random() - 0.5) * 0.8; // ±23°
+    const dist = 260 + Math.random() * 120;                 // 260–380px ahead
+    const x    = player.x + Math.cos(ang) * dist;
+    const y    = player.y + Math.sin(ang) * dist;
+
+    const candidate = {
+      x, y,
+      w:   OIL_W,
+      h:   OIL_H,
+      rot: ang,
+      born: Date.now()
+    };
+
+    // if it doesn’t overlap existing puddles, we’re good
+    if (!oilPuddles.some(o => rectOverlap(candidate, o))) {
+      oilPuddles.push(candidate);
+      break;
+    }
+    tries++;
+  } while (tries < 10);
   }
 });
