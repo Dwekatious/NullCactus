@@ -1,12 +1,13 @@
 // paintball.js
-document.addEventListener('DOMContentLoaded', () => {
++document.addEventListener('DOMContentLoaded', () => {
+
   // ─── INITIAL STATE & DATA ─────────────────────────
   let magSize             = 30;        // How many rounds fit in one magazine initially
   let baseBulletDamage    = 30;        // The starting damage of each shot
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
     /* ─── PLAYER CONFIG ───────────────────────────── */
-  const BASE_PLAYER_HP = 100;   // <— add this with the other globals
+  const BASE_PLAYER_HP = 1000000000;   // <— add this with the other globals
   let lastBlockerTime     = 0;
   let lastEruptionTime    = 0;
   let lastDifficultyTime  = 0;
@@ -57,6 +58,16 @@ const modes = [
   { t: 450, name:'inferno',   bg:'#440000' }    // 7.5 min
 ];
 
+
+  /* DEBUG – instant Inferno */
+  const dbgBtn = document.getElementById('debugInfernoBtn');
+  if (dbgBtn) {
+    dbgBtn.onclick = () => {
+      spawnStartTime = Date.now() - (modes[3].t + 1) * 1000; // 1 s inside Inferno
+      curMode        = modes[3];
+      document.body.style.background = curMode.bg;
+    };
+  }
 let curMode = modes[0];
 let flyIns   = [];          // purgatory projectiles
 let oilPuddles = [];            // abyss oil puddles  <— leave the name
@@ -96,8 +107,8 @@ let eruptions= [];          // inferno fire‐storms
   const magnetPullSpeed   = 15;         // Speed (px/frame) at which loot moves toward player
 
   // ─── BOSS SPAWN CONFIG ───────────────────────────────
-  const bossSpawnIntervalMin = 10_000;  // Minimum delay (ms) between boss spawns
-  const bossSpawnIntervalMax = 60_000; // Maximum delay (ms) between boss spawns
+  const bossSpawnIntervalMin = 5_000;  // Minimum delay (ms) between boss spawns
+  const bossSpawnIntervalMax = 25_000; // Maximum delay (ms) between boss spawns
 
   const upgrades = {
     health:   { cost: 20,  apply: () => { player.maxHealth += 20; player.health += 20; } },
@@ -407,37 +418,16 @@ function difficultyT(elapsedMs) {
 }
 
 /* ─── NEW SPAWN-SCHEDULER ─────────────────────────── */
-function scheduleNextSpawn() {
-  const now       = Date.now();
-  const elapsedMs = now - spawnStartTime;
-  const elapsed   = elapsedMs / 1000; // seconds
+function update() {
+  if (!player) return;
 
-  updateMode(elapsed);
+  const now        = Date.now();
+  const elapsedMs  = now - spawnStartTime;
+  const elapsedSec = elapsedMs / 1000;
 
-  // ─── DIFFICULTY SCALAR ───────────────────────────────
-  // starts harder (0.6 instead of 0.4) and scales up via your curve
-  const diff = 0.6 + difficultyT(elapsedMs);
+  const elapsed    = elapsedSec;        // ← one-liner fix
+  updateMode(elapsedSec);
 
-  // ─── BASE WAVE & DELAY ────────────────────────────────
-  // more aggressive scaling: ×2 instead of ×1.5
-  let baseDelay = 3000 / (1 + diff * 2);      // from 3000→~375ms at peak
-  let baseWave  = 1 + Math.floor(diff * 1.5); // from 1→7 waves
-
-  // ─── INFERNO MODE DOUBLE EVERY 30s ───────────────────
-  if (curMode.name === 'inferno') {
-    // how many 30s-intervals have passed in Inferno
-    const bursts = Math.floor(elapsed / 30);
-    const boost  = Math.pow(2, bursts);  // 2×, 4×, 8×, ...
-    baseDelay /= boost;                  // faster spawns
-    baseWave  *= boost;                  // more per wave
-  }
-
-  setTimeout(() => {
-    // fire off the wave
-    for (let i = 0; i < baseWave; i++) spawnEnemy();
-    // schedule next
-    scheduleNextSpawn();
-  }, baseDelay);
 }
 
 
@@ -606,19 +596,7 @@ function update() {
       lastBlockerTime = now;
     }
   }
-  // INFERNO (7.5–10m):
-  if (curMode.name === 'inferno') {
-    // - eruption every 3–5s
-    if (now - lastEruptionTime > 3000 + Math.random() * 2000) {
-      spawnEruption();
-      lastEruptionTime = now;
-    }
-    // - double spawn rate every 30s
-    if (elapsedMs - lastDifficultyTime > 30000) {
-      increaseDifficulty();
-      lastDifficultyTime = elapsedMs;
-    }
-  }
+
 
   // ─── RELOAD FINISH ────────────────────────────────────
   if (reloading && now - reloadStart >= reloadDur) {
@@ -1210,7 +1188,7 @@ function renderLeader(){
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
     const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage + 50 * (a.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage + 10 * (a.level - 1);
 
   orbitAngle += bladeOrbitCfg.speed;
 
@@ -1373,6 +1351,38 @@ function dist(x1, y1, x2, y2) {
     return 2 + Math.pow((m - 15) / 5, 2) * 2;   // 2 → 4 (quad curve)
   }
 
+  /* ─── NEW SPAWN-SCHEDULER ───────────────────────── */
+  function scheduleNextSpawn() {
+    const now        = Date.now();
+    const elapsedMs  = now - spawnStartTime;
+    const elapsedSec = elapsedMs / 1000;
+
+    updateMode(elapsedSec);
+
+    /* base wave & delay – gets harder the longer you play */
+    const diff      = 0.6 + difficultyT(elapsedMs);
+    let   baseDelay = 3000 / (1 + diff * 2);        // 3 s → ~375 ms
+    let   baseWave  = 1 + Math.floor(diff * 1.5);   // 1 → 7
+
+    /* ── INFERNO tweaks ───────────────────────────── */
+    if (curMode.name === 'inferno') {
+      const infernoSecs = elapsedSec - modes[3].t;          // time *in* Inferno
+      const bursts      = Math.min(6, Math.floor(infernoSecs / 30));
+
+      baseWave   = Math.min(baseWave + bursts, 40);         // +1 each burst
+      const k    = 1 - bursts * 0.15;                       // 1, 0.85, 0.70…
+      baseDelay  = Math.max(baseDelay * k, 250);            // never < 250 ms
+    }
+
+    /* ── fire wave after the computed delay ───────── */
+    setTimeout(() => {
+      const MAX_LIVE_ENEMIES = 1000;
+      if (enemies.length < MAX_LIVE_ENEMIES) {
+        for (let i = 0; i < baseWave; i++) spawnEnemy();
+      }
+      scheduleNextSpawn();          // recurse
+    }, baseDelay);
+  }
 
 
 
@@ -1423,4 +1433,7 @@ function dist(x1, y1, x2, y2) {
     tries++;
   } while (tries < 10);
   }
+
+
+
 });
