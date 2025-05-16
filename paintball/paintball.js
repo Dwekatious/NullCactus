@@ -5,11 +5,35 @@ document.addEventListener('DOMContentLoaded', () => {
   let baseBulletDamage    = 30;        // The starting damage of each shot
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
+ 
+  // ─── EXP & LEVEL SYSTEM ────────────────────────────
   let currentEXP   = 0;
   let currentLevel = 1;
+  let expThreshold = 100; 
+  function calcNextEXP(level) {        // simple linear scaling
+    return 100 * level;
+  }
+  // Called to refresh progress bar and text
+  function updateEXPDisplay() {
+    expText.textContent = `Level: ${player.level} • EXP: ${currentEXP}`;
+    expFill.style.width = `${(currentEXP / expThreshold) * 100}%`;
+  }
+
+  // ─── ORBIT ABILITY STATE ───────────────────────────────
+  let orbitAngle = 0;           // current rotation in radians
+  const orbitRadius = 50;       // distance of triangles from player
+
+
+  const bladeOrbitCfg = {
+  radius : 60,      // distance from player  (px)
+  speed  : 0.08,    // rotation speed        (radians / frame)
+  damage : 12       // damage per touch
+};
+
+  
   
 
-
+  
   const expToNext   = () => 100 * currentLevel;  // example: 100 × level
   const baseInterval      = 3000;      // Initial delay (ms) between enemy spawn waves
   const minInterval       = 500;       // Fastest possible spawn delay (ms) after ramp‐up
@@ -27,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const upgradePanel   = document.getElementById('upgradePanel');
   const upGold         = document.getElementById('upGold');
   const expBarContainer= document.getElementById('expBarContainer');
-  const abilityPanel   = document.getElementById('abilityPanel');
+  
   const expAbilityPanel = document.getElementById('expAbilityPanel');
   const expFill         = document.getElementById('expFill');
   const expText         = document.getElementById('expText');
@@ -58,6 +82,14 @@ document.addEventListener('DOMContentLoaded', () => {
     buckshot:{ cost:10, damage:15, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
     minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
     sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 }
+  };
+
+  // 1. Define abilities
+  const abilities = {
+    1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 3, active: false },
+    2: { name: '—',          unlockLevel: 10 }, // placeholder
+    3: { name: '—',          unlockLevel: 15 },
+    4: { name: '—',          unlockLevel: 20 }
   };
 
   // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
@@ -142,16 +174,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── CANVAS SETUP ───────────────────────────────
   const canvas = document.getElementById('game');
   const ctx    = canvas.getContext('2d');
-  let w = canvas.width  = innerWidth;
-  let h = canvas.height = innerHeight;
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  let w = canvas.width;
+  let h = canvas.height;
   window.addEventListener('resize', () => {
-    w = canvas.width  = innerWidth;
-    h = canvas.height = innerHeight;
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  w = canvas.width;
+  h = canvas.height;
   });
 
   // ─── GAME STATE ─────────────────────────────────
   const mapSize = 5000;
   let player, keys = {}, bullets = [], enemies = [], objects = [], pickups = [];
+  let orbitTriangles = [];
   let score = 0, reserve = maxReserve, gold = 0;
   let ammo = magSize, reloading = false, reloadStart = 0, reloadDur = 1000;
   
@@ -191,32 +228,55 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshPanel();
   });
 
-  // ─── GAME INITIALIZATION & LOOP ────────────────
   function initGame() {
-    player = { x: mapSize/2, y: mapSize/2, size:40, angle:0, speed:4, health:100, maxHealth:100 };
-    score = gold = 0;
-    reserve = maxReserve;
-    ammo = magSize;
-    reloading = false;
-    baseBulletDamage = 30;
-    currentWeapon = { damage:30, bullets:1, spread:0, reload:reloadDur, fireRate:300 };
-    upgradePanel.style.display = 'block';
-    expAbilityPanel.style.display = 'flex';
-    updateEXPDisplay();  // draw initial “Level: 1 • EXP: 0”
-    expBarContainer.style.display = 'block';
-    abilityPanel.style.display    = 'flex';
-    
-    initObjects();
-    bullets = []; enemies = []; pickups = [];
-    spawnStartTime = Date.now();
-    gameStarted = true;
-    scheduleNextSpawn();
-    updateUI();
-    requestAnimationFrame(loop);
-    scheduleNextBoss();
-  }
-  // call this at end of initGame()
-scheduleNextBoss();
+  // ─── Initialize player and reset stats ─────────────────────────
+  player = {
+    x: mapSize / 2,
+    y: mapSize / 2,
+    size: 40,
+    angle: 0,
+    speed: 4,
+    health: 100,
+    maxHealth: 100,
+    level: 1
+  };
+  score = gold = 0;
+  reserve = maxReserve;
+  ammo = magSize;
+  reloading = false;
+  baseBulletDamage = 30;
+  currentWeapon = { ...weapons.buckshot };
+
+  // ─── Reset EXP/Level system ──────────────────────────────────
+  currentLevel = 1;
+  currentEXP   = 0;
+  expThreshold = calcNextEXP(currentLevel);
+  updateEXPDisplay();
+
+  // ─── Show/hide UI panels appropriately ───────────────────────
+  ui.style.display              = 'none';
+  upgradePanel.style.display    = 'block';
+  expAbilityPanel.style.display = 'flex';
+  expBarContainer.style.display = 'block';
+
+  // ─── Unlock ability slots for current level ──────────────────
+  updateAbilitySlots();
+
+  // ─── Initialize game objects and start spawning ─────────────
+  initObjects();
+  bullets = [];
+  enemies = [];
+  pickups = [];
+  spawnStartTime = Date.now();
+
+  // ─── Kick off spawns and game loop ───────────────────────────
+  gameStarted = true;
+  scheduleNextSpawn();
+  scheduleNextBoss();
+  requestAnimationFrame(loop);
+}
+
+  
 
 function scheduleNextBoss(){
   const delay = bossSpawnIntervalMin
@@ -568,7 +628,7 @@ function spawnBoss(){
     document.getElementById('finalScore').textContent = score;
     document.getElementById('gameOver').style.display = 'block';
     expBarContainer.style.display = 'none';
-    abilityPanel.style.display    = 'none';
+    expAbilityPanel.style.display    = 'none';
     upgradePanel.style.display = 'none';
     expAbilityPanel.style.display = 'none';
     saveHigh(score);
@@ -603,7 +663,7 @@ function spawnBoss(){
       });
     }
   });
-
+  updateAbilities();
 
   
 }
@@ -677,7 +737,7 @@ function spawnBoss(){
       ctx.fillStyle = e.color;
       ctx.fillRect(ex - e.size/2, ey - e.size/2, e.size, e.size);
       // health bar
-      const pct = e.health / e.maxHealth;
+      const pct = Math.max(0, e.health) / e.maxHealth;
       ctx.fillStyle = '#555';
       ctx.fillRect(ex - e.size/2, ey - e.size/2 - 8, e.size, 6);
       ctx.fillStyle = '#0F0';
@@ -694,6 +754,32 @@ function spawnBoss(){
                               '#FFD700';
       ctx.fillRect(x - p.size/2, y - p.size/2, p.size, p.size);
     });
+
+  const blade = abilities[1];
+  if (blade && blade.active && blade.level > 0) {
+    ctx.fillStyle = 'crimson';
+    ctx.strokeStyle = '#fafafa';
+    ctx.lineWidth = 2;
+
+    for (let i = 0; i < 2; i++) {
+      const ang = orbitAngle + i * Math.PI;
+      const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
+      const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
+
+      ctx.save();
+      ctx.translate(tx - viewX, ty - viewY);
+      ctx.rotate(ang + Math.PI / 2);
+
+      ctx.beginPath();
+      ctx.moveTo(0, -14);   // taller tip
+      ctx.lineTo(10, 14);   // wider base
+      ctx.lineTo(-10, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();         // thin white outline
+      ctx.restore();
+    }
+  }
 
     // ─── ROCKET FLAME PARTICLES ─────────────────────────
     rocketParticles.forEach((p, i) => {
@@ -808,63 +894,155 @@ function renderLeader(){
     document.getElementById('expBarInner').style.width = pct + '%';
   }
 
-  // when you bind click on the slots:
-  document.querySelectorAll('.ability-slot').forEach(slot => {
-    slot.addEventListener('click', () => {
-      const idx = slot.dataset.slot;
-      console.log(`Activate ability #${idx}`);
-      // TODO: hook your real ability‐activation here
+
+
+
+  // 2. On game init or level change, unlock slots:
+  function updateAbilitySlots() {
+    document.querySelectorAll('.ability-slot').forEach(slot => {
+      const key      = +slot.dataset.slot;
+      const ability  = abilities[key];
+      if (!ability) return;                           // skip empty slots
+
+      if (player.level >= ability.unlockLevel) {
+        slot.classList.remove('locked');
+        slot.classList.add('unlocked');
+
+        // ── NEW: auto-grant level 1 on first unlock ──
+        if (ability.level === 0) ability.level = 1;
+      }
     });
-  });
-
-
-// ---- keyboard → ability pop ------------------------------------
-document.addEventListener('keydown', e => {
-  if (!gameStarted) return;                 // only once the game is live
-  if (!['1', '2', '3', '4'].includes(e.key)) return;
-
-  const slot = document.querySelector(
-      `.ability-slot[data-slot="${e.key}"]`
-  );
-  if (!slot) return;
-
-  // trigger whatever ability click you already wired
-  slot.click();
-
-  // POP animation driven by Web-Animations API
-  // (150 ms scale-up + colour flash, then auto-reverts)
-  slot.animate(
-    [
-      { transform: 'scale(1)',   backgroundColor: '#2A2C33' },
-      { transform: 'scale(1.35)', backgroundColor: '#4A90E2', offset: 0.5 },
-      { transform: 'scale(1)',   backgroundColor: '#2A2C33' }
-    ],
-    { duration: 150, easing: 'ease-out' }
-  );
-});
-
-
-
-
-
-
-
-  function updateEXPDisplay() {
-    const pct = (currentEXP / expToNext()) * 100;
-    expFill.style.width = pct + '%';
-    expText.textContent = `Level: ${currentLevel} • EXP: ${currentEXP}`;
   }
 
+  // 3. Hook into EXP gain/level-up
   function addEXP(amount) {
     currentEXP += amount;
-    while (currentEXP >= expToNext()) {
-      currentEXP -= expToNext();
+    if (currentEXP >= expThreshold) {
+      currentEXP -= expThreshold;
       currentLevel++;
+      player.level = currentLevel;
+      expThreshold = calcNextEXP(currentLevel);
+      updateEXPDisplay();
+      updateAbilitySlots();
+      showAbilityLevelupPanel();
+    } else {
+      updateEXPDisplay();
     }
-    updateEXPDisplay();
+  }
+  function showAbilityLevelupPanel() {
+    const opts = document.getElementById('abilityOptions');
+    opts.innerHTML = '';
+    Object.entries(abilities).forEach(([key, a]) => {
+      if (player.level >= a.unlockLevel && a.level < a.maxLevel) {
+        const btn = document.createElement('button');
+        btn.textContent = `${a.name} (Lvl ${a.level})`;
+        btn.onclick = () => { a.level++; hideLevelupPanel(); };
+        opts.appendChild(btn);
+      }
+    });
+    document.getElementById('abilityLevelupPanel').classList.remove('hidden');
+  }
+  function hideLevelupPanel() {
+    document.getElementById('abilityLevelupPanel').classList.add('hidden');
   }
 
-  
-  
+  // 4. Toggle activation on key press
+  document.addEventListener('keydown', e => {
+    if (e.key >= '1' && e.key <= '4') {
+      const slot = document.querySelector(`.ability-slot[data-slot="${e.key}"]`);
+      const ab = abilities[e.key];
+      if (ab && player.level >= ab.unlockLevel) {
+        ab.active = !ab.active;
+        slot.classList.toggle('ability-active', ab.active);
+      }
+    }
+  });
+
+  // 5. In game loop update: orbit logic
+  function updateAbilities() {
+    const a = abilities[1];
+    if (!a || !a.active || a.level === 0) return;
+
+    orbitAngle += bladeOrbitCfg.speed;                // spin
+
+    for (let i = 0; i < 2; i++) {
+      const ang = orbitAngle + i * Math.PI;           // 180° apart
+      const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
+      const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
+
+      /* damage check */
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (dist(tx, ty, e.x, e.y) < 18) {
+          e.health -= bladeOrbitCfg.damage * a.level;
+          if (e.health <= 0) handleEnemyDeath(j);
+        }
+      }
+    }
+  }
+
+  function drawOrbitTriangles() {
+    ctx.fillStyle = 'crimson';
+    orbitTriangles.forEach(t => {
+      ctx.save();
+      ctx.translate(t.x - viewX, t.y - viewY);
+      ctx.rotate(t.rot);
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(5, 10);
+      ctx.lineTo(-5, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+  function drawTriangle(x, y, rot) {
+  ctx.save();
+  ctx.translate(x - viewX, y - viewY);
+  ctx.rotate(rot);
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(5, 10);
+  ctx.lineTo(-5, 10);
+  ctx.closePath();
+  ctx.fillStyle = 'crimson';
+  ctx.fill();
+  ctx.restore();
+}
+
+function dist(x1, y1, x2, y2) {
+  return Math.hypot(x1 - x2, y1 - y2);
+}
+  /* ─── NEW: centralised death handler ─────────────────────────────── */
+  function handleEnemyDeath(idx) {
+    const e = enemies[idx];
+
+    if (e.isBoss) {
+      score += 100;
+      addEXP(100);
+      const drop = Math.floor(score / 10);
+      pickups.push({ x: e.x, y: e.y, size: 20, type: 'gold', value: drop });
+    } else {
+      score += 10;
+      addEXP(10);
+
+      // random pickup
+      let r = Math.random(), type = null;
+      if (r < 0.5)        type = null;
+      else if (r < 0.8)   type = 'gold';
+      else if (r < 0.95)  type = 'ammo';
+      else                type = 'health';
+      if (type) {
+        const val =
+          type === 'ammo'   ? 100 :
+          type === 'health' ?  30 :
+          (e.size > 60 ? 10 : e.size > 40 ? 5 : 2);
+        pickups.push({ x: e.x, y: e.y, size: 20, type, value: val });
+      }
+    }
+
+    enemies.splice(idx, 1);        // remove from array
+  }
+
 
 });
