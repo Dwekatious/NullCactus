@@ -7,7 +7,7 @@
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
     /* ─── PLAYER CONFIG ───────────────────────────── */
-  const BASE_PLAYER_HP = 1000000000;   // <— add this with the other globals
+  const BASE_PLAYER_HP = 100;   // <— add this with the other globals
   let lastBlockerTime     = 0;
   let lastEruptionTime    = 0;
   let lastDifficultyTime  = 0;
