@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentEXP   = 0;
   let currentLevel = 1;
   let expThreshold = 100; 
+  let skillPoints = 0;             // spendable on ability ranks
   function calcNextEXP(level) {        // simple linear scaling
     return 100 * level;
   }
@@ -252,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
   currentEXP   = 0;
   expThreshold = calcNextEXP(currentLevel);
   updateEXPDisplay();
+  prepareAbilityUI()
 
   // ─── Show/hide UI panels appropriately ───────────────────────
   ui.style.display              = 'none';
@@ -274,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
   scheduleNextSpawn();
   scheduleNextBoss();
   requestAnimationFrame(loop);
-}
+  }
 
   
 
@@ -900,34 +902,33 @@ function renderLeader(){
   // 2. On game init or level change, unlock slots:
   function updateAbilitySlots() {
     document.querySelectorAll('.ability-slot').forEach(slot => {
-      const key      = +slot.dataset.slot;
-      const ability  = abilities[key];
-      if (!ability) return;                           // skip empty slots
-
-      if (player.level >= ability.unlockLevel) {
+      const key = +slot.dataset.slot;
+      const ab  = abilities[key];
+      if (!ab) return;
+      if (player.level >= ab.unlockLevel) {
         slot.classList.remove('locked');
         slot.classList.add('unlocked');
-
-        // ── NEW: auto-grant level 1 on first unlock ──
-        if (ability.level === 0) ability.level = 1;
+        if (ab.level === 0) ab.level = 1;      // auto‑learn first rank
       }
     });
+    refreshSkillArrows();
   }
 
   // 3. Hook into EXP gain/level-up
   function addEXP(amount) {
     currentEXP += amount;
-    if (currentEXP >= expThreshold) {
+    while (currentEXP >= expThreshold) {
       currentEXP -= expThreshold;
       currentLevel++;
       player.level = currentLevel;
       expThreshold = calcNextEXP(currentLevel);
+      skillPoints++;                     // ← gain 1 point
       updateEXPDisplay();
       updateAbilitySlots();
-      showAbilityLevelupPanel();
-    } else {
-      updateEXPDisplay();
+      refreshSkillArrows();
+      showAbilityLevelupPanel();         // still optional UI
     }
+    updateEXPDisplay();
   }
   function showAbilityLevelupPanel() {
     const opts = document.getElementById('abilityOptions');
@@ -1043,6 +1044,41 @@ function dist(x1, y1, x2, y2) {
 
     enemies.splice(idx, 1);        // remove from array
   }
+  function prepareAbilityUI() {
+    document.querySelectorAll('.ability-slot').forEach(slot => {
+      // skip if already wrapped
+      if (slot.parentElement.classList.contains('slot-wrap')) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'slot-wrap';
+      wrap.style.position = 'relative';
+      wrap.style.display  = 'inline-block';
+      slot.parentElement.replaceChild(wrap, slot);
+      wrap.appendChild(slot);
 
+      const arrow = document.createElement('div');
+      arrow.className = 'skill-up-btn';
+      arrow.onclick = () => attemptUpgrade(+slot.dataset.slot, arrow);
+      wrap.appendChild(arrow);
+    });
+  }
+ /* ── Toggle arrow visibility based on points / max rank ─ */
+  function refreshSkillArrows() {
+    document.querySelectorAll('.skill-up-btn').forEach(btn => {
+      const slot = +btn.parentElement.querySelector('.ability-slot').dataset.slot;
+      const ab   = abilities[slot];
+      if (!ab) { btn.classList.add('disabled'); return; }
+      const can = skillPoints>0 && ab.level < 5 && player.level >= ab.unlockLevel;
+      btn.classList.toggle('show',     can);
+      btn.classList.toggle('disabled', !can);
+    });
+  }
 
+  function attemptUpgrade(slotKey, arrowEl) {
+    const ab = abilities[slotKey];
+    if (!ab || ab.level >= 5 || skillPoints === 0) return;
+    ab.level++;
+    skillPoints--;
+    arrowEl.classList.remove('show');   // hide until next point
+    refreshSkillArrows();
+  }
 });
