@@ -39,7 +39,7 @@
   const bladeOrbitCfg = {
   radius : 130,      // distance from player  (px)
   speed  : 0.08,    // rotation speed        (radians / frame)
-  baseDamage : 12       // damage per touch
+  baseDamage : 5       // damage per touch
 };
 
 /* ─── INSANITY STATE ───────────────────────────── */
@@ -1188,7 +1188,7 @@ function renderLeader(){
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
     const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage + 10 * (a.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage + 5 * (a.level - 1);
 
   orbitAngle += bladeOrbitCfg.speed;
 
