@@ -132,7 +132,7 @@ header:hover,
 /* START‐GAME PANEL */
 #ui {
   position: fixed;
-  top: 50%;
+  top: 40%;
   left: 50%;
   /* increase overall size by 50% */
   width: 360px;            /* e.g. from ~240px → 360px */
@@ -430,7 +430,7 @@ a {
   margin: 0px;
   background: #2A2C33;
   color: #fff;
-  font-size: 1.25rem;
+  font-size: 0.75rem;
   font-weight: bold;
   border-radius: 6px;
   display: flex;
@@ -563,3 +563,113 @@ a {
   #dbgPanel .row{display:flex; gap:4px}
   #dbgPanel .row>*{flex:1}
 */
+
+
+/* ─── CLASS-PANEL v2 ─────────────────────────────────────── */
+#classPanel{
+    position:fixed;
+    top:65%;                     /* push panel lower than leaderboard */
+    left:50%;transform:translate(-50%,-50%);
+    width:min(90vw,420px);       /* ≈-40 % of previous 680 px */
+    padding:20px;
+    border-radius:12px;
+    background:#14161b;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+    z-index:1000;
+    color:#f4a438;
+    font-family:"Segoe UI",sans-serif;
+    animation:panelIn .45s cubic-bezier(.25,.8,.25,1);
+}
+@keyframes panelIn{
+    0%{opacity:0;transform:translate(-50%,-52%) scale(.9)}
+    100%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+}
+
+/* ── title ──────────────────────────────────────────────── */
+.cls-title{
+    margin:0 0 14px;
+    font-size:1.4rem;
+    text-align:center;
+}
+
+/* ── frame & items ─────────────────────────────────────── */
+.cls-frame{
+    border:2px solid #555;
+    border-radius:8px;
+    padding:0px;
+    display:flex;
+    justify-content:space-between;
+    gap:0px;                    /* buttons closer together */
+}
+.cls-item{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:5px;
+    padding:5px;
+    cursor:pointer;
+    user-select:none;
+    transition:transform .12s,border-color .25s;
+}
+/* keep the chosen item raised */
+.cls-item.selected { 
+  transform: translateY(-10px); 
+}
+
+.cls-item:not(.selected):hover {
+  transform: scale(1.05);
+}
+
+
+.cls-label{
+    font-weight:600;
+    font-size:.95rem;
+}
+
+/* ── icon ──────────────────────────────────────────────── */
+.cls-icon{
+    width:64px;                 /* ≈-40 % of previous 88 px */
+    height:64px;
+    border:0px solid #2f557d;
+    border-radius:0px;
+    background:#20202600 url('../tank.png') center/64px 64px no-repeat;
+    transition:border-color .25s,box-shadow .25s;
+}
+
+[data-class="assault"] .cls-icon{background-image:url('../assult.png');}
+[data-class="sniper"]  .cls-icon{background-image:url('../sniper.png');}
+[data-class="medic"]   .cls-icon{background-image:url('../medic.png');}
+
+
+
+
+/* ── CLASS-SELECTION panel (lower it) ───── */
+#classPanel{
+    top:75%;         /* was 65 % — larger value = lower on screen   */
+    transform:translate(-50%,-50%);
+    
+}
+.hidden { display: none; }
+
+
+
+.warning {
+  position: absolute;
+  top: 820px; left:50%;
+  
+  transform: translateX(-50%);
+  background: rgba(255,69,0,0.9);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: .9rem;
+  opacity: 0;
+  transition: opacity .3s;
+  z-index: 1100;
+}
+.warning.show {
+  opacity: 1;
+}
+
