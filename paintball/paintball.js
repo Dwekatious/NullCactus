@@ -21,6 +21,14 @@
   }
 
 
+ // ─── spawn options ────────────────────────────
+  let DBG = {
+    lastDelay   : 0,
+    lastWave    : 0,
+    maxEnemies  : 5000,
+    minDelay    : 10           // ← NEW  user-tweakable floor (ms)
+  };
+
   // oil stuff
   const OIL_LIFETIME = 10_000;            // ms before disappearing
   const OIL_W        = 280;               // doubled width
@@ -1188,7 +1196,7 @@ function renderLeader(){
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
     const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage + 5 * (a.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage  * (a.level - 1);
 
   orbitAngle += bladeOrbitCfg.speed;
 
@@ -1371,13 +1379,14 @@ function dist(x1, y1, x2, y2) {
 
       baseWave   = Math.min(baseWave + bursts, 40);         // +1 each burst
       const k    = 1 - bursts * 0.15;                       // 1, 0.85, 0.70…
-      baseDelay  = Math.max(baseDelay * k, 250);            // never < 250 ms
+      baseDelay  = Math.max(baseDelay * k, DBG.minDelay);  // user floor
     }
-
+    DBG.lastWave  = baseWave;
+    DBG.lastDelay = baseDelay;
     /* ── fire wave after the computed delay ───────── */
     setTimeout(() => {
-      const MAX_LIVE_ENEMIES = 1000;
-      if (enemies.length < MAX_LIVE_ENEMIES) {
+      const MAX_LIVE_ENEMIES = DBG.maxEnemies;
+      if (enemies.length < DBG.maxEnemies) {
         for (let i = 0; i < baseWave; i++) spawnEnemy();
       }
       scheduleNextSpawn();          // recurse
@@ -1435,5 +1444,72 @@ function dist(x1, y1, x2, y2) {
   }
 
 
+
+
+
+
+  /* ─── DEBUG HELPER STATE ─────────────────────────── */
+
+/* 1.  Toggle panel visibility */
+document.getElementById('dbgToggle').onclick = () => {
+  const p = document.getElementById('dbgPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+};
+
+/* 2.  Cheat buttons */
+document.getElementById('dbgInfGold').onclick = () => {
+  gold = 9_999_999;  refreshPanel();
+};
+document.getElementById('dbgInfHP').onclick = () => {
+  player.health = player.maxHealth = 9_999_999;
+  updateUI();
+};
+
+/* 3.  Phase selector */
+const sel = document.getElementById('dbgPhaseSelect');
+modes.forEach((m,i)=> {
+  const o=document.createElement('option');
+  o.value=i; o.textContent=m.name; sel.appendChild(o);
+});
+sel.onchange = e => {
+  const idx = +e.target.value;
+  spawnStartTime = Date.now() - modes[idx].t * 1000 - 1;
+  curMode = modes[idx];
+  document.body.style.background = curMode.bg;
+};
+
+/* 4.  Change max live-enemy cap */
+document.getElementById('dbgSaveMax').onclick = () => {
+  DBG.maxEnemies = +document.getElementById('dbgMaxEnemies').value||DBG.maxEnemies;
+};
+
+/* 5.  Force-spawn N enemies instantly */
+document.getElementById('dbgSpawnN').onclick = () => {
+  const n = +document.getElementById('dbgForceSpawn').value||1;
+  for (let i=0;i<n;i++) spawnEnemy();
+};
+
+/* 6.  Insta-kill everything currently alive */
+document.getElementById('dbgKillAll').onclick = ()=> {
+  enemies.slice().forEach((_,i)=>handleEnemyDeath(i));
+};
+
+/* 7.  Update live stats once per second */
+setInterval(()=> {
+  const box   = document.getElementById('dbgStats');
+  box.innerHTML =
+    `enemies: ${enemies.length}<br>`+
+    `maxWave: ${DBG.lastWave||0}<br>`+
+    `spawnDelay: ${Math.round(DBG.lastDelay)} ms`;
+},1000);
+  /* set new min-spawn delay */
+  document.getElementById('dbgSaveDelay').onclick = () => {
+    const v = +document.getElementById('dbgMinDelay').value || DBG.minDelay;
+    DBG.minDelay = Math.max(50, v);        // hard floor 50 ms so game can’t lock
+  };
+
+  /* when user edits the enemy cap input, keep the number in sync visually too   */
+  document.getElementById('dbgMaxEnemies').value = DBG.maxEnemies;
+  document.getElementById('dbgMinDelay' ).value = DBG.minDelay;
 
 });
