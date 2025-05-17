@@ -47,7 +47,7 @@
   const bladeOrbitCfg = {
   radius : 130,      // distance from player  (px)
   speed  : 0.08,    // rotation speed        (radians / frame)
-  baseDamage : 5       // damage per touch
+  baseDamage : 1       // damage per touch
 };
 const classWarning = document.getElementById('classWarning');
 
@@ -81,10 +81,12 @@ let curMode = modes[0];
 let flyIns   = [];          // purgatory projectiles
 let oilPuddles = [];            // abyss oil puddles  <— leave the name
 let eruptions= [];          // inferno fire‐storms
-  
+// ─── GRENADES ─────────────────────────────────────
+let grenades = [];
+let clones      = [];     // ← add this line
   
 
-  
+  const BACKUP_RADIUS = 120; // distance from player (clones)
   const expToNext   = () => 100 * currentLevel;  // example: 100 × level
   const baseInterval      = 3000;      // Initial delay (ms) between enemy spawn waves
   const minInterval       = 500;       // Fastest possible spawn delay (ms) after ramp‐up
@@ -104,6 +106,14 @@ let eruptions= [];          // inferno fire‐storms
   const expAbilityPanel = document.getElementById('expAbilityPanel');
   const expFill         = document.getElementById('expFill');
   const expText         = document.getElementById('expText');
+
+
+    // tweak these to taste:
+  const BACKUP_ORBIT_RADIUS      = 120;  // how far clones stay from the player
+  const BACKUP_ORBIT_SPEED_MIN   = 0.02; // slowest angular speed
+  const BACKUP_ORBIT_SPEED_RANGE = 0.03; // + random
+  const BACKUP_TARGET_RADIUS     = 300;  // only enemies within this range are valid targets
+
 
   expAbilityPanel.style.display = 'none';  // hide until game start
 
@@ -138,7 +148,8 @@ function refreshPanel() {
   upGold.textContent = gold;
 }
 
-  
+// how long grenade-spawned bullets live (in seconds)
+const GRENADE_BULLET_LIFESPAN = 1; 
 
 // ─── SHOP PANEL HANDLER ─────────────────────────
 if (upgradePanel) {
@@ -159,6 +170,76 @@ if (upgradePanel) {
   });
 }
 
+// spawn exactly `level` clones at the player’s position
+function spawnBackupClones(level) {
+  clones = [];
+  for (let i = 0; i < level; i++) {
+    clones.push({
+      x: player.x,
+      y: player.y,
+      targetPos: null,
+      speed: 2 + Math.random()*2,  // tweak walking speed
+      fireRate: weapons.buckshot.fireRate * 2,
+      lastShot: 0,
+      shotsSinceTargetChange: 0,
+      target: null,
+      dmgMul: 1 + 0.25 * (level - 1)
+    });
+  }
+}
+
+// each frame, make clones wander & shoot
+function updateClones() {
+  const now = Date.now();
+  const maxRadius = BACKUP_RADIUS * 5;
+  clones.forEach(c => {
+    // pick a new wander target if none or reached
+    if (!c.targetPos || dist(c.x, c.y, c.targetPos.x, c.targetPos.y) < 5) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * maxRadius;
+      c.targetPos = {
+        x: player.x + Math.cos(a) * r,
+        y: player.y + Math.sin(a) * r
+      };
+    }
+    // step toward wander target
+    let dx = c.targetPos.x - c.x,
+        dy = c.targetPos.y - c.y,
+        d  = Math.hypot(dx,dy);
+    if (d > 1) {
+      c.x += (dx/d) * c.speed;
+      c.y += (dy/d) * c.speed;
+    }
+
+    // shooting logic (unchanged)
+    if (now - c.lastShot >= c.fireRate) {
+      if (
+        !c.target ||
+        c.shotsSinceTargetChange >= 2 ||
+        dist(c.x, c.y, c.target.x, c.target.y) > BACKUP_TARGET_RADIUS
+      ) {
+        let near = enemies.filter(e =>
+          dist(c.x,c.y,e.x,e.y) <= BACKUP_TARGET_RADIUS
+        );
+        c.target = near.length
+          ? near[Math.floor(Math.random()*near.length)]
+          : null;
+        c.shotsSinceTargetChange = 0;
+      }
+      if (c.target) {
+        const ang = Math.atan2(c.target.y - c.y, c.target.x - c.x);
+        bullets.push({
+          x: c.x, y: c.y,
+          ang, spd:14, size:8,
+          damage: weapons.buckshot.damage * c.dmgMul * damageMultiplier
+        });
+        c.lastShot = now;
+        c.shotsSinceTargetChange++;
+      }
+    }
+  });
+}
+
 
 
 
@@ -175,9 +256,9 @@ if (upgradePanel) {
   // 1. Define abilities
   const abilities = {
     1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 5, active: false},
-    2: { name: 'Insanity',    unlockLevel: 4, level: 0, maxLevel: 5, active: false},
-    3: { name: 'Grenade',     unlockLevel: 4, level: 0, maxLevel: 5, active: false},
-    4: { name: 'Stomp',       unlockLevel: 4, level: 0, maxLevel: 5, active: false}
+    2: { name: 'Insanity',    unlockLevel: 3, level: 0, maxLevel: 5, active: false},
+    3: { name: 'Grenade',     unlockLevel: 5, level: 0, maxLevel: 5, active: false},
+    4: { name: 'Backup',       unlockLevel: 1, level: 0, maxLevel: 5, active: false}
   };
 
   // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
@@ -605,7 +686,9 @@ function update() {
   const elapsedMs  = now - spawnStartTime;
   const elapsedSec = elapsedMs / 1000;
   updateMode(elapsedSec);
+  updateClones();
 
+  
   // ─── OIL PUDDLE SLOWDOWN ─────────────────────────────
   // 'oilPuddles' are now oil puddles
   let inOil = false;
@@ -690,6 +773,12 @@ function update() {
 // ─── BULLET COLLISIONS ───────────────────────────────
 for (let i = bullets.length - 1; i >= 0; i--) {
   const b = bullets[i];
+
+      // remove grenade bullets whose TTL has elapsed
+    if (b.isGrenadeBullet && Date.now() - b.birthTime > b.ttl) {
+      bullets.splice(i, 1);
+      continue;
+    }
 
   /* 1) MOVE BULLET */
   b.x += Math.cos(b.ang) * b.spd;
@@ -855,6 +944,42 @@ for (let i = bullets.length - 1; i >= 0; i--) {
     if(e.life<=0) eruptions.splice(i,1);
   });
 
+
+
+
+  // ─── PROCESS GRENADES ───────────────────────────
+for (let i = grenades.length - 1; i >= 0; i--) {
+  const g   = grenades[i];
+  const age = Date.now() - g.born;
+  if (age >= g.fuse) {
+    // explosion!
+    const lvl   = abilities[3].level;
+    const count = lvl * 15;               // 500,1000,…,2500 bullets
+    const dmg   = lvl * 10 ;           // 50,75,…,150 damage
+    const now   = Date.now();
+
+    for (let j = 0; j < count; j++) {
+      const ang = (Math.PI * 2 * j) / count;
+      bullets.push({
+        x: g.x,
+        y: g.y,
+        ang: ang,                       // ← use ang, not angle
+        spd: 8,
+        size: 6,
+        damage: dmg * damageMultiplier, // ← use your local dmg
+
+        // new properties for TTL
+        isGrenadeBullet: true,
+        birthTime: now,
+        ttl: GRENADE_BULLET_LIFESPAN * 1000  // ms
+      });
+    }
+
+    grenades.splice(i, 1);
+  }
+}
+
+
   updateUI();
 
   // ─── BOSS SHOOTING (unchanged) ────────────────────────────────
@@ -1010,12 +1135,45 @@ eruptions.forEach(e => {
     ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
     ctx.restore();
 
+
+
+
+
+  // draw each clone, 35% transparent:
+  ctx.globalAlpha = 0.65;
+  clones.forEach(c => {
+    ctx.save();
+      ctx.translate(c.x - viewX, c.y - viewY);
+      ctx.rotate(player.angle);
+      ctx.fillStyle = '#4A90E2';
+      ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;   // reset alpha so everything else draws normally
+
+
     // ─── RELOAD BAR ─────────────────────────────────────
     if (reloading) {
       const pct = Math.min((Date.now() - reloadStart)/reloadDur, 1);
       ctx.fillStyle = '#FFF';
       ctx.fillRect(px - 50, py - player.size - 10, 100 * pct, 6);
     }
+
+      // ─── DRAW GRENADES (FLASHING CIRCLE) ───────────
+    grenades.forEach(g => {
+      const age   = Date.now() - g.born;
+      const flash = Math.floor(age / 200) % 2 === 0;
+      ctx.beginPath();
+      ctx.arc(
+        g.x - viewX,
+        g.y - viewY,
+        12, 0, Math.PI * 2
+      );
+      ctx.fillStyle = flash
+        ? 'rgba(255,  0,  0, 0.7)'
+        : 'rgba(255,255,  0, 0.7)';
+      ctx.fill();
+    });
 
     // ─── PLAYER BULLETS ──────────────────────────────────
     ctx.fillStyle = '#F5A623';
@@ -1246,17 +1404,25 @@ function renderLeader(){
     document.getElementById('abilityLevelupPanel').classList.add('hidden');
   }
 
-  // 4. Toggle activation on key press
-  document.addEventListener('keydown', e => {
-    if (e.key >= '1' && e.key <= '4') {
-      const slot = document.querySelector(`.ability-slot[data-slot="${e.key}"]`);
-      const ab = abilities[e.key];
-      if (ab && player.level >= ab.unlockLevel) {
-        ab.active = !ab.active;
-        slot.classList.toggle('ability-active', ab.active);
+document.addEventListener('keydown', e => {
+  if (e.key >= '1' && e.key <= '4') {
+    const slot = document.querySelector(`.ability-slot[data-slot="${e.key}"]`);
+    const ab   = abilities[e.key];
+    if (!ab || player.level < ab.unlockLevel) return;
+
+    ab.active = !ab.active;
+    slot.classList.toggle('ability-active', ab.active);
+
+    if (e.key === '4') {
+      if (ab.active) {
+        spawnBackupClones(ab.level);
+      } else {
+        clones = [];
       }
     }
-  });
+  }
+});
+
 
   // 5. In game loop update: orbit logic
   function updateAbilities() {
@@ -1284,16 +1450,16 @@ function renderLeader(){
     const ins = abilities[2];
   if (ins && ins.active && ins.level > 0) {
 
-    /* multiplier: 1 + 2×level  ⇒ 3,5,7,9,11  */
-    damageMultiplier = 1 + 2 * ins.level;
+    /* multiplier: 1 + lvl/2 */
+    damageMultiplier = 1 + 0.5 * ins.level;
 
     /* speed ×2 while active */
     player.speed = baseSpeed * 2;
 
-    /* 5 HP poison per second */
+    /* 25 HP poison per second */
     poisonTimer += 16;                   // ≈ frame time
     if (poisonTimer >= 1000) {
-      if (player.health > 10) player.health -= 10;   // never drop below 1
+      if (player.health > 25) player.health -= 25;   // never drop below 1
       else {abilities[2].active = false;              // auto-toggle off
         damageMultiplier    = 1;
         player.speed        = baseSpeed;
@@ -1313,6 +1479,34 @@ function renderLeader(){
     player.speed     = baseSpeed;
     hue              = 0;
   }
+
+
+
+  // ─── GRENADE ABILITY ───────────────────────────
+  const gren = abilities[3];
+  if (gren && gren.active && gren.level > 0) {
+    const now = Date.now();
+    if (!gren.lastThrow) gren.lastThrow = 0;
+    // cooldown per level (ms)
+    const cds = [ null, 5000, 4000, 3000, 2000, 1000 ];
+    if (now - gren.lastThrow >= cds[gren.level]) {
+      gren.lastThrow = now;
+      grenades.push({
+        x: player.x,
+        y: player.y,
+        born: now,
+        fuse: 1000       // 1 second fuse
+      });
+    }
+  }
+
+
+
+
+
+
+
+
   }
 
   function drawOrbitTriangles() {
@@ -1410,9 +1604,18 @@ function dist(x1, y1, x2, y2) {
     const ab = abilities[slotKey];
     if (!ab || ab.level >= 5 || skillPoints === 0) return;
     ab.level++;
+    if (slotKey === 4 && ab.active) {
+      spawnBackupClones(ab.level);
+      }
     skillPoints--;
     arrowEl.classList.remove('show');   // hide until next point
     refreshSkillArrows();
+
+
+      // If Backup (slot 4) is active, rebuild clones at the new level:
+    if (slotKey === 4 && ab.active) {
+      spawnBackupClones(ab.level);
+    }
   }
 
 
@@ -1515,15 +1718,15 @@ function dist(x1, y1, x2, y2) {
 
 
 
-  /* ─── DEBUG HELPER STATE ─────────────────────────── */
+  /* ─── DEBUG HELPER STATE ─────────────────────────── 
 
-/* 1.  Toggle panel visibility */
+/* 1.  Toggle panel visibility 
 document.getElementById('dbgToggle').onclick = () => {
   const p = document.getElementById('dbgPanel');
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
 };
 
-/* 2.  Cheat buttons */
+/* 2.  Cheat buttons 
 document.getElementById('dbgInfGold').onclick = () => {
   gold = 9_999_999;  refreshPanel();
 };
@@ -1532,7 +1735,7 @@ document.getElementById('dbgInfHP').onclick = () => {
   updateUI();
 };
 
-/* 3.  Phase selector */
+/* 3.  Phase selector 
 const sel = document.getElementById('dbgPhaseSelect');
 modes.forEach((m,i)=> {
   const o=document.createElement('option');
@@ -1545,23 +1748,23 @@ sel.onchange = e => {
   document.body.style.background = curMode.bg;
 };
 
-/* 4.  Change max live-enemy cap */
+/* 4.  Change max live-enemy cap 
 document.getElementById('dbgSaveMax').onclick = () => {
   DBG.maxEnemies = +document.getElementById('dbgMaxEnemies').value||DBG.maxEnemies;
 };
 
-/* 5.  Force-spawn N enemies instantly */
+/* 5.  Force-spawn N enemies instantly 
 document.getElementById('dbgSpawnN').onclick = () => {
   const n = +document.getElementById('dbgForceSpawn').value||1;
   for (let i=0;i<n;i++) spawnEnemy();
 };
 
-/* 6.  Insta-kill everything currently alive */
+/* 6.  Insta-kill everything currently alive 
 document.getElementById('dbgKillAll').onclick = ()=> {
   enemies.slice().forEach((_,i)=>handleEnemyDeath(i));
 };
 
-/* 7.  Update live stats once per second */
+/* 7.  Update live stats once per second 
 setInterval(()=> {
   const box   = document.getElementById('dbgStats');
   box.innerHTML =
@@ -1569,18 +1772,19 @@ setInterval(()=> {
     `maxWave: ${DBG.lastWave||0}<br>`+
     `spawnDelay: ${Math.round(DBG.lastDelay)} ms`;
 },1000);
-  /* set new min-spawn delay */
+  /* set new min-spawn delay 
   document.getElementById('dbgSaveDelay').onclick = () => {
     const v = +document.getElementById('dbgMinDelay').value || DBG.minDelay;
     DBG.minDelay = Math.max(50, v);        // hard floor 50 ms so game can’t lock
   };
 
-  /* when user edits the enemy cap input, keep the number in sync visually too   */
+  /* when user edits the enemy cap input, keep the number in sync visually too   
   document.getElementById('dbgMaxEnemies').value = DBG.maxEnemies;
   document.getElementById('dbgMinDelay' ).value = DBG.minDelay;
+*/
 
 
 
-  
+
 
 });
