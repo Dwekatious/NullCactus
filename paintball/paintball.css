@@ -547,4 +547,18 @@ a {
 .skill-up-btn.disabled { display:none; }
 
 
+/* ─── DEBUGGING PANEL ────────────────────────────────────── */
+  #dbgToggle   { position:fixed; right:12px; bottom:12px; z-index:9998;
+                 background:#444; color:#fff; padding:6px 12px; border-radius:6px;
+                 font:600 14px/1 sans-serif; cursor:pointer; }
+  #dbgPanel    { position:fixed; right:12px; bottom:54px; width:260px;
+                 background:#151515; color:#eee; padding:14px; border-radius:12px;
+                 box-shadow:0 4px 14px rgba(0,0,0,.6); z-index:9999; display:none;
+                 font:13px/1.4 monospace; }
+  #dbgPanel h4 { margin:0 0 6px; font:700 14px/1 sans-serif; }
+  #dbgPanel button, #dbgPanel select, #dbgPanel input[type=number]{
+                 margin:4px 0; width:100%; padding:4px 6px; font:600 12px monospace;
+                 border:none; border-radius:4px; cursor:pointer; }
+  #dbgPanel .row{display:flex; gap:4px}
+  #dbgPanel .row>*{flex:1}
 
