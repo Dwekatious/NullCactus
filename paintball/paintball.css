@@ -548,6 +548,7 @@ a {
 
 
 /* ─── DEBUGGING PANEL ────────────────────────────────────── */
+/*
   #dbgToggle   { position:fixed; right:12px; bottom:12px; z-index:9998;
                  background:#444; color:#fff; padding:6px 12px; border-radius:6px;
                  font:600 14px/1 sans-serif; cursor:pointer; }
@@ -561,4 +562,4 @@ a {
                  border:none; border-radius:4px; cursor:pointer; }
   #dbgPanel .row{display:flex; gap:4px}
   #dbgPanel .row>*{flex:1}
-
+*/
