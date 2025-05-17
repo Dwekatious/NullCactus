@@ -90,16 +90,55 @@
 
 
 
-
+<!-- ─── INFERNO DEBUG BUTTON ─────────────────────────────── -->
   <canvas id="game"></canvas>
-  <!--
+  
   <button id="debugInfernoBtn"
         style="position:fixed;bottom:12px;right:12px;
                background:#c00;color:#fff;border:none;border-radius:6px;
                padding:6px 14px;opacity:.25;z-index:999;">
   ⇥ Inferno ⇥
 </button>
--->
+
+
+
+
+
+<!-- ─── DEBUG TOOLS ─────────────────────────────── -->
+<button id="dbgToggle">Debug Tools</button>
+
+<div id="dbgPanel">
+  <h4>Cheats</h4>
+  <button id="dbgInfGold">∞ Gold</button>
+  <button id="dbgInfHP">∞ Health</button>
+
+  <h4>Phase</h4>
+  <select id="dbgPhaseSelect"></select>
+
+  <h4>Runtime Stats</h4>
+  <div id="dbgStats">
+    enemies: 0<br>
+    maxWave: 0<br>
+    spawnDelay: 0 ms
+  </div>
+
+  <h4>Tweaks</h4>
+  <div class="row">
+    <input id="dbgMinDelay" type="number" min="50" value="250" title="Min delay (ms)">
+    <button id="dbgSaveDelay">Set Delay</button>
+  </div>
+
+  <div class="row">
+    <input id="dbgMaxEnemies"  type="number" min="50"  value="250" title="Cap"/>
+    <button id="dbgSaveMax">Set Cap</button>
+  </div>
+  <div class="row">
+    <input id="dbgForceSpawn" type="number" min="1" value="5"  title="N"/>
+    <button id="dbgSpawnN">Spawn N</button>
+  </div>
+  <button id="dbgKillAll" style="background:#b00">Kill all enemies</button>
+</div>
+
 
 
 
