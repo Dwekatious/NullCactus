@@ -32,7 +32,7 @@
   // oil stuff
   const OIL_LIFETIME = 10_000;            // ms before disappearing
   const OIL_W        = 280;               // doubled width
-  const OIL_H        = 80;                // doubled height
+  const OIL_H        = 280;                // doubled height
   // Called to refresh progress bar and text
   function updateEXPDisplay() {
     expText.textContent = `Level: ${player.level} • EXP: ${currentEXP}`;
@@ -49,6 +49,7 @@
   speed  : 0.08,    // rotation speed        (radians / frame)
   baseDamage : 5       // damage per touch
 };
+const classWarning = document.getElementById('classWarning');
 
 /* ─── INSANITY STATE ───────────────────────────── */
 let damageMultiplier = 1;
@@ -95,8 +96,8 @@ let eruptions= [];          // inferno fire‐storms
   // ─── UI REFERENCES ──────────────────────────────
   const ui             = document.getElementById('ui');
   const startBtn       = document.getElementById('startBtn');
+  const classPanel = document.getElementById('classPanel');  // already on page
   const restartBtn     = document.getElementById('restartBtn');
-  const upgradePanel   = document.getElementById('upgradePanel');
   const upGold         = document.getElementById('upGold');
   const expBarContainer= document.getElementById('expBarContainer');
   
@@ -106,6 +107,7 @@ let eruptions= [];          // inferno fire‐storms
 
   expAbilityPanel.style.display = 'none';  // hide until game start
 
+    let playerClass = null;        // remember chosen class
 
 
   
@@ -117,6 +119,7 @@ let eruptions= [];          // inferno fire‐storms
   // ─── BOSS SPAWN CONFIG ───────────────────────────────
   const bossSpawnIntervalMin = 5_000;  // Minimum delay (ms) between boss spawns
   const bossSpawnIntervalMax = 25_000; // Maximum delay (ms) between boss spawns
+  const upgradePanel   = document.getElementById('upgradePanel');
 
   const upgrades = {
     health:   { cost: 20,  apply: () => { player.maxHealth += 20; player.health += 20; } },
@@ -126,6 +129,43 @@ let eruptions= [];          // inferno fire‐storms
     magnet: { cost: 6, apply: () => {pickupRadius = Math.min(maxPickupRadius, pickupRadius + 20);}}
 
   };
+
+
+
+  /* ─── SHOP / GOLD COUNTER REFRESH ─────────────────── */
+function refreshPanel() {
+  // show current gold in the little “g” badge
+  upGold.textContent = gold;
+}
+
+  
+
+// ─── SHOP PANEL HANDLER ─────────────────────────
+if (upgradePanel) {
+  upgradePanel.addEventListener('click', e => {
+    const btn = e.target.closest('.upgrade-btn');
+    if (!btn) return;
+
+    const key = btn.dataset.upgrade;
+    const up  = upgrades[key];
+    if (!up || gold < up.cost) return;
+
+    gold -= up.cost;
+    up.apply();
+    up.cost = Math.ceil(up.cost * 1.5);
+
+    refreshPanel();
+    updateUpgradeButtons();
+  });
+}
+
+
+
+
+
+
+
+
     const weapons = {
     buckshot:{ cost:10, damage:15, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
     minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
@@ -134,10 +174,10 @@ let eruptions= [];          // inferno fire‐storms
 
   // 1. Define abilities
   const abilities = {
-    1: { name: 'Blade Orbit', unlockLevel: 2, level: 0, maxLevel: 5, active: false },
-    2: { name: 'Insanity',    unlockLevel: 4, level: 0, maxLevel: 5, active: false },
-    3: { name: '—',          unlockLevel: 15 },
-    4: { name: '—',          unlockLevel: 20 }
+    1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 5, active: false},
+    2: { name: 'Insanity',    unlockLevel: 4, level: 0, maxLevel: 5, active: false},
+    3: { name: 'Grenade',     unlockLevel: 4, level: 0, maxLevel: 5, active: false},
+    4: { name: 'Stomp',       unlockLevel: 4, level: 0, maxLevel: 5, active: false}
   };
 
   // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
@@ -194,20 +234,9 @@ let eruptions= [];          // inferno fire‐storms
       btn.textContent = `${upgradeLabels[key]} — ${upgrades[key].cost} g`;
     });
   }
-  const panel = document.getElementById('upgradePanel');
-  panel.addEventListener('click', e => {
-    const uKey = e.target.dataset.upgrade;
-    if (uKey && upgrades[uKey] && gold >= upgrades[uKey].cost) {
-      gold -= upgrades[uKey].cost;
-      upgrades[uKey].apply();
 
-      // bump price by 10%
-      upgrades[uKey].cost = Math.ceil(upgrades[uKey].cost * 1.5);
 
-      refreshPanel();           // your existing UI update
-      updateUpgradeButtons();   // redraw all upgrade buttons
-    }
-  });
+
 
 
 
@@ -254,30 +283,51 @@ let eruptions= [];          // inferno fire‐storms
     loadHighs();
     ui.style.display = 'none';
     initGame();
+    
+   
   };
+
+
+ 
+ 
+
+  // make sure any old onclick is gone:
+  startBtn.replaceWith(startBtn.cloneNode(true));
+  const cleanStartBtn = document.getElementById('startBtn');
+
+cleanStartBtn.addEventListener('click', () => {
+  const chosen = document.querySelector('.cls-item.selected');
+  if (!chosen) {                       // nothing picked → show warning
+    classWarning.classList.add('show');
+    setTimeout(() => classWarning.classList.remove('show'), 1800);
+    return;
+  }
+
+  playerClass = chosen.dataset.class;  // "tank", "assault", …
+  classPanel.classList.add('hidden');
+  initGame();                          // initGame will read playerClass
+});
+
+
+  const classItems = document.querySelectorAll('.cls-item');
+  classItems.forEach(item => {
+    item.addEventListener('click', () => {
+      // remove “selected” from all…
+      classItems.forEach(i => i.classList.remove('selected'));
+      // …then add it to the one we clicked
+      item.classList.add('selected');
+    });
+  });
+  
   restartBtn.onclick = () => location.reload();
 
   
-  // ─── SHOP PANEL HANDLER ─────────────────────────
-  function refreshPanel() {
-    upGold.textContent = gold;
-  }
-  upgradePanel.addEventListener('click', e => {
-    const u = e.target.dataset.upgrade, wKey = e.target.dataset.weapon;
-    if (u && upgrades[u] && gold >= upgrades[u].cost) {
-      gold -= upgrades[u].cost;
-      upgrades[u].apply();
-    }
-    if (wKey && weapons[wKey] && gold >= weapons[wKey].cost) {
-      gold -= weapons[wKey].cost;
-      currentWeapon    = { ...weapons[wKey] };
-      currentWeaponKey = wKey;    // ← track the key for auto‐fire logic
-    }
-    refreshPanel();
-  });
+
+
 
   function initGame() {
   // ─── Initialize player and reset stats ─────────────────────────
+  
   player = {
     x: mapSize / 2,
     y: mapSize / 2,
@@ -293,7 +343,21 @@ let eruptions= [];          // inferno fire‐storms
   ammo = magSize;
   reloading = false;
   baseBulletDamage = 30;
-  currentWeapon = { ...weapons.buckshot };
+  if (playerClass === 'tank') {
+
+  /* lock weapon to buckshot */
+  currentWeaponKey = 'buckshot';
+  currentWeapon    = { ...weapons.buckshot };
+
+  /* tweak Tank abilities without redefining objects */
+  abilities[2].name        = 'insanity';   // replaces “Insanity” label
+  abilities[2].unlockLevel = 4;        // available from start
+  abilities[2].level       = 1;        // stays un-learned until ranked
+
+  /* hide weapon-purchase buttons */
+  upgradePanel.querySelectorAll('[data-weapon]')
+              .forEach(btn => btn.style.display = 'none');
+}
 
   // ─── Reset EXP/Level system ──────────────────────────────────
   currentLevel = 1;
@@ -323,6 +387,7 @@ let eruptions= [];          // inferno fire‐storms
   scheduleNextSpawn();
   scheduleNextBoss();
   requestAnimationFrame(loop);
+  
   }
 
   
@@ -1117,6 +1182,8 @@ function renderLeader(){
     `;
     ul.appendChild(li);
   });
+
+  
 }
 
   loadHighs();
@@ -1196,7 +1263,7 @@ function renderLeader(){
     const a = abilities[1];
     if (!a || !a.active || a.level === 0) return;
     const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage  * (a.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage  * (a.level);
 
   orbitAngle += bladeOrbitCfg.speed;
 
@@ -1511,5 +1578,9 @@ setInterval(()=> {
   /* when user edits the enemy cap input, keep the number in sync visually too   */
   document.getElementById('dbgMaxEnemies').value = DBG.maxEnemies;
   document.getElementById('dbgMinDelay' ).value = DBG.minDelay;
+
+
+
+  
 
 });
