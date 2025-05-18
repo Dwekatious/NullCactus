@@ -258,7 +258,7 @@ function updateClones() {
     1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 5, active: false},
     2: { name: 'Insanity',    unlockLevel: 3, level: 0, maxLevel: 5, active: false},
     3: { name: 'Grenade',     unlockLevel: 5, level: 0, maxLevel: 5, active: false},
-    4: { name: 'Backup',       unlockLevel: 1, level: 0, maxLevel: 5, active: false}
+    4: { name: 'Backup',       unlockLevel: 8, level: 0, maxLevel: 5, active: false}
   };
 
   // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
