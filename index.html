@@ -26,7 +26,7 @@
     content="description" content="Null Cactus Studios delivers free HTML5 browser games—play Paint Ball, Null.io, physics simulations & more. Enjoy action, strategy & puzzle games online today!."/>
 
 
-<!-- hello this is a test -->
+
 
   <style>
     html { scroll-behavior: smooth; }
@@ -232,7 +232,7 @@
           <img src="null_io_bg.png" alt="Demo 1" class="w-full h-48 object-cover">
           <div class="p-6">
             <h4 class="text-2xl font-bold mb-2">Null.io</h4>
-            <p class="text-gray-300 mb-4">Eat the food, grow bigger!</p>
+            <p class="text-gray-300 mb-4">This game is not functional and just a placeholder</p>
             <a href="single_file_games/nullio.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Null.io →</a>
           </div>
         </div>
@@ -240,7 +240,7 @@
           <img src="paintball2.png" alt="Demo 2" class="w-full h-48 object-cover">
           <div class="p-6">
             <h4 class="text-2xl font-bold mb-2">Shoot'em All!</h4>
-            <p class="text-gray-300 mb-4">The 5 minute pit of hell.</p>
+            <p class="text-gray-300 mb-4">2D Rogue-Like Action Shooting Game (In Open Testing Phase, Adding More Features Everyday)</p>
             <a href="paintball/paintball.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Box Shooter →</a>
           </div>
         </div>
@@ -248,7 +248,7 @@
           <img src="physics.png" alt="Demo 3" class="w-full h-48 object-cover">
           <div class="p-6">
             <h4 class="text-2xl font-bold mb-2">Physics simulation!</h4>
-            <p class="text-gray-300 mb-4">Enjoy an almost hypnotic physics simulation.</p>
+            <p class="text-gray-300 mb-4">A Simple Physics Simulation (Functional Placeholder)</p>
             <a href="single_file_games/physics.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Physics →</a>
           </div>
         </div>
@@ -274,64 +274,101 @@
         📝 Changelog
       </h2>
 
+      <!-- viewport to mask overflow -->
+      <div class="changelog-viewport">
+        <!-- inner list -->
+        <div class="changelog-inner">
 
-  <!-- viewport to mask overflow -->
-  <div class="changelog-viewport">
-    <!-- inner list -->
-    <div class="changelog-inner">
+          <!-- Newest entries -->
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Stun Grenade</span>
+              <span class="text-sm text-gray-400">v1.3.6 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Stun Grenade”: auto‐drops a timed grenade that explodes and stuns up to 50 enemies for 3 s (up to 500 enemies & 8 s at max rank). Cooldown: 10 s.
+            </p>
+          </div>
 
-      <!-- Newest entries -->
-      <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
-        <div class="flex justify-between">
-          <span class="font-semibold">Shoot’em All!: Backup Clones Ability</span>
-          <span class="text-sm text-gray-400">v1.3.2 · Today</span>
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Century Gun</span>
+              <span class="text-sm text-gray-400">v1.3.5 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Century Gun” turrets: spawn for 20 s with 5 s cooldown, auto‐fire at enemies within 300 px. Each level adds additional turrets, +15 % damage and +50 % fire-rate per rank.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: RPG Launcher</span>
+              <span class="text-sm text-gray-400">v1.3.4 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “RPG Launcher”: automatically fires a homing rocket every 5 s → 1 s at max rank. Explosion deals AoE damage (base 50, +10 % per level) and grows in size & radius per rank.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Homing Bullets</span>
+              <span class="text-sm text-gray-400">v1.3.3 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Homing Bullets”: togglable ability that locks shots onto nearby targets within a growing radius, +25 % damage per rank, drains 20 HP/s and auto‐disables on low health.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Backup Clones Ability</span>
+              <span class="text-sm text-gray-400">v1.3.2 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Backup” ability: mirror‐clones roam randomly around the player, shooting nearby enemies with buckshot. Upgrades increase clone count and damage multiplier.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Player Damage Fix</span>
+              <span class="text-sm text-gray-400">v1.3.1 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Fixed an issue where player took no damage from any source. Boss bullets and enemy collisions now correctly reduce health.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: “Insanity” ability + rainbow trail</span>
+              <span class="text-sm text-gray-400">v1.3.0 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              New toggle skill that multiplies damage, doubles speed, cycles player colour and leaves a fading rainbow trail while draining 5 HP /s. Upgrades scale the multiplier from ×3 → ×11.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Blade Orbit rework & skill-point system</span>
+              <span class="text-sm text-gray-400">v1.2.9 · 2 days ago</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Level-up now grants skill points and emerald arrows to upgrade abilities. Blade Orbit gains +1 blade and +35 DMG each rank (max 6 blades).
+            </p>
+          </div>
+
+          <!-- other entries unchanged -->
+          <!-- ...rest of items... -->
+
         </div>
-        <p class="mt-2 text-gray-200">
-          Added “Backup” ability: mirror‐clones roam randomly around the player, shooting nearby enemies with buckshot. Upgrades increase clone count and damage multiplier.
-        </p>
       </div>
-
-      <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
-        <div class="flex justify-between">
-          <span class="font-semibold">Shoot’em All!: Player Damage Fix</span>
-          <span class="text-sm text-gray-400">v1.3.1 · Today</span>
-        </div>
-        <p class="mt-2 text-gray-200">
-          Fixed an issue where player took no damage from any source. Boss bullets and enemy collisions now correctly reduce health.
-        </p>
-      </div>
-
-      <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
-        <div class="flex justify-between">
-          <span class="font-semibold">Shoot’em All!: “Insanity” ability + rainbow trail</span>
-          <span class="text-sm text-gray-400">v1.3.0 · Today</span>
-        </div>
-        <p class="mt-2 text-gray-200">
-          New toggle skill that multiplies damage, doubles speed, cycles player colour and leaves a fading rainbow trail while draining 5 HP / s.
-          Upgrades scale the multiplier from ×3 → ×11.
-        </p>
-      </div>
-
-      <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
-        <div class="flex justify-between">
-          <span class="font-semibold">Shoot’em All!: Blade Orbit rework & skill-point system</span>
-          <span class="text-sm text-gray-400">v1.2.9 · 2 days ago</span>
-        </div>
-        <p class="mt-2 text-gray-200">
-          Level-up now grants skill points and emerald arrows to upgrade abilities. Blade Orbit gains +1 blade and +35 DMG each rank (max 6 blades).
-        </p>
-      </div>
-
-      <!-- other entries unchanged -->
-      <!-- ...rest of items... -->
-
     </div>
   </div>
-</div>
-
-
-  </div>
 </section>
+
 
 
 
