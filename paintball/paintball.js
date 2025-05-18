@@ -308,7 +308,7 @@ function updateClones() {
     
     
     // Assault-class abilities:
-    5: { name: 'Homing Bullets',  unlockLevel: 1, level: 0, maxLevel: 1, active: false },
+    5: { name: 'Homing Bullets',  unlockLevel: 1, level: 0, maxLevel: 5, active: false },
     6: { name: 'RPG Launcher',    unlockLevel: 3, level: 0, maxLevel: 5, active: false },
     7: { name: 'Century Gun',     unlockLevel: 5, level: 0, maxLevel: 5, active: false },
     8: { name: 'Stun Grenade',    unlockLevel: 8, level: 0, maxLevel: 5, active: false },
