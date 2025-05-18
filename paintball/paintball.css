@@ -673,3 +673,19 @@ a {
   opacity: 1;
 }
 
+
+.ability-slot {
+  /* allow wrap & word-break */
+  white-space: normal !important;
+  word-break: break-word;
+  
+  /* shrink font a bit so it fits */
+  font-size: 0.6rem;
+  line-height: 1;
+  
+  /* center it in the square */
+  text-align: center;
+  padding: 0rem;
+}
+
+
