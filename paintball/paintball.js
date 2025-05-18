@@ -1,6 +1,48 @@
 // paintball.js
 +document.addEventListener('DOMContentLoaded', () => {
 
+// 1) Define a slot→ability lookup per class
+const SLOT_MAP = {
+  default: [1, 2, 3, 4],   // keys 1–4 → abilities[1…4]
+  assault: [5, 6, 7, 8],   // keys 1–4 → abilities[5…8]
+  // add more classes here if needed
+};
+
+
+// Century Gun globals
+const CENTURY_RADIUS       = 300;      // spawn radius around player
+const CENTURY_UPTIME_MS    = 20_000;   // how long they stay
+const CENTURY_COOLDOWN_MS  = 5_000;   // then disappear
+const BASE_CENTURY_DAMAGE  = 50;       // level 1 damage
+const BASE_CENTURY_RATE    = 500;     // level 1 fires every 2 s
+let centuryPhaseStart      = 0;        // when the current cycle began
+const CENTURY_RANGE = 300;
+
+
+// STUN GRENADE CONFIG
+const STUN_FUSE_MS        = 1000;   // time after drop → explosion
+const STUN_COOLDOWN_MS    = 10000;  // base drop interval
+const STUN_RADIUS         = 200;    // explosion AoE
+const STUN_BASE_COUNT     = 50;     // enemies stunned at lvl1
+const STUN_MAX_COUNT      = 500;    // stunned at lvl5
+const STUN_BASE_DURATION  = 3000;   // ms at lvl1
+const STUN_MAX_DURATION   = 8000;   // ms at lvl5
+
+let stunGrenades = [];   // track active drops/explosions
+// 👇 NEW: how long the *visual* ring takes to expand (in ms)
+const STUN_ANIM_MS        = 400;    // ring grows from 0→full in 0.4s
+
+
+// max at level 1, scaled upward
+const RPG_BASE_SIZE     = 12;    // half-width of the rocket body at level 1
+const RPG_BASE_RADIUS   = 100;   // explosion AOE at level 1
+const RPG_SCALE_PER_LVL = 0.35;  // +15% size & radius per extra level
+const RPG_BASE_DAMAGE   = 50;    // base explosion damage at level 1
+
+
+
+  const BASE_HOMING_RADIUS  = 450;   // px at level 1
+  const HOMING_DAMAGE_BONUS = 0.25;  // +25% per level
   // ─── INITIAL STATE & DATA ─────────────────────────
   let magSize             = 30;        // How many rounds fit in one magazine initially
   let baseBulletDamage    = 30;        // The starting damage of each shot
@@ -19,8 +61,7 @@
   function calcNextEXP(level) {        // simple linear scaling
     return 100 * level;
   }
-
-
+ 
  // ─── spawn options ────────────────────────────
   let DBG = {
     lastDelay   : 0,
@@ -54,7 +95,7 @@ const classWarning = document.getElementById('classWarning');
 /* ─── INSANITY STATE ───────────────────────────── */
 let damageMultiplier = 1;
 const baseSpeed = 4;             // player default
-let poisonTimer  = 0;            // ms accumulator
+
 let hue          = 0;            // for RGB cycling
 let trails = [];          // {x,y,hue,life}
 const TRAIL_LIFE = 25;    // frames
@@ -84,6 +125,8 @@ let eruptions= [];          // inferno fire‐storms
 // ─── GRENADES ─────────────────────────────────────
 let grenades = [];
 let clones      = [];     // ← add this line
+let rpgMissiles = [];
+let explosions  = [];
   
 
   const BACKUP_RADIUS = 120; // distance from player (clones)
@@ -255,10 +298,24 @@ function updateClones() {
 
   // 1. Define abilities
   const abilities = {
+
+    // Tank-class abilities:
     1: { name: 'Blade Orbit', unlockLevel: 1, level: 0, maxLevel: 5, active: false},
     2: { name: 'Insanity',    unlockLevel: 3, level: 0, maxLevel: 5, active: false},
     3: { name: 'Grenade',     unlockLevel: 5, level: 0, maxLevel: 5, active: false},
-    4: { name: 'Backup',       unlockLevel: 8, level: 0, maxLevel: 5, active: false}
+    4: { name: 'Backup',       unlockLevel: 8, level: 0, maxLevel: 5, active: false},
+      
+    
+    
+    // Assault-class abilities:
+    5: { name: 'Homing Bullets',  unlockLevel: 1, level: 0, maxLevel: 1, active: false },
+    6: { name: 'RPG Launcher',    unlockLevel: 3, level: 0, maxLevel: 5, active: false },
+    7: { name: 'Century Gun',     unlockLevel: 5, level: 0, maxLevel: 5, active: false },
+    8: { name: 'Stun Grenade',    unlockLevel: 8, level: 0, maxLevel: 5, active: false },
+
+
+
+
   };
 
   // ← INSERT THESE NEXT TWO LINES (scope: inside DOMContentLoaded)
@@ -406,9 +463,8 @@ cleanStartBtn.addEventListener('click', () => {
 
 
 
-  function initGame() {
+ function initGame() {
   // ─── Initialize player and reset stats ─────────────────────────
-  
   player = {
     x: mapSize / 2,
     y: mapSize / 2,
@@ -424,52 +480,85 @@ cleanStartBtn.addEventListener('click', () => {
   ammo = magSize;
   reloading = false;
   baseBulletDamage = 30;
+
+  // ─── Initialize player class and remap ability slots ───────────────
   if (playerClass === 'tank') {
+    currentWeaponKey = 'buckshot';
+    currentWeapon    = { ...weapons.buckshot };
 
-  /* lock weapon to buckshot */
-  currentWeaponKey = 'buckshot';
-  currentWeapon    = { ...weapons.buckshot };
+    document.querySelectorAll('.ability-slot').forEach((slotEl, i) => {
+      const id = SLOT_MAP.default[i]; // [1,2,3,4]
+      slotEl.dataset.slot = id;
+      slotEl.textContent  = abilities[id].name;
+      slotEl.classList.remove('locked');
+      if (abilities[id].level === 0 && player.level >= abilities[id].unlockLevel) {
+        abilities[id].level = 1;
+      }
+    });
 
-  /* tweak Tank abilities without redefining objects */
-  abilities[2].name        = 'insanity';   // replaces “Insanity” label
-  abilities[2].unlockLevel = 4;        // available from start
-  abilities[2].level       = 1;        // stays un-learned until ranked
+    // tank‐specific tweaks…
+    abilities[2].name        = 'Insanity';
+    abilities[2].unlockLevel = 4;
+    abilities[2].level       = Math.max(1, abilities[2].level);
+    upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => btn.style.display = 'none');
+  }
+else if (playerClass === 'assault') {
+  // switch to minigun
+  currentWeaponKey = 'minigun';
+  currentWeapon   = { ...weapons.minigun };
 
-  /* hide weapon-purchase buttons */
-  upgradePanel.querySelectorAll('[data-weapon]')
-              .forEach(btn => btn.style.display = 'none');
+  // remap the 4 slots to abilities 5–8
+  document.querySelectorAll('.ability-slot').forEach((slotEl, i) => {
+    const abilityId = SLOT_MAP.assault[i];  // [5,6,7,8]
+    slotEl.dataset.slot   = abilityId;
+    slotEl.textContent    = abilities[abilityId].name;
+    // clear any old locked/unlocked/active classes;
+    // updateAbilitySlots() will re-apply them correctly
+    slotEl.classList.remove('locked', 'unlocked', 'ability-active');
+  });
+
+  // hide non-minigun purchase buttons
+  upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => {
+    if (btn.dataset.weapon !== 'minigun') {
+      btn.style.display = 'none';
+    }
+  });
 }
+
+
+
 
   // ─── Reset EXP/Level system ──────────────────────────────────
   currentLevel = 1;
   currentEXP   = 0;
   expThreshold = calcNextEXP(currentLevel);
   updateEXPDisplay();
-  prepareAbilityUI()
 
-  // ─── Show/hide UI panels appropriately ───────────────────────
-  ui.style.display              = 'none';
-  upgradePanel.style.display    = 'block';
+  // ─── Unlock any slots now available at level 1 ──────────────────
+  updateAbilitySlots();
+
+  // ─── Now wire up arrows & slot‐clicks ───────────────────────────
+  prepareAbilityUI();
+  refreshSkillArrows();
+
+  // ─── Show / hide the appropriate panels ───────────────────────
+  ui.style.display           = 'none';
+  upgradePanel.style.display = 'block';
   expAbilityPanel.style.display = 'flex';
   expBarContainer.style.display = 'block';
 
-  // ─── Unlock ability slots for current level ──────────────────
-  updateAbilitySlots();
-
-  // ─── Initialize game objects and start spawning ─────────────
+  // ─── Initialize world & start spawning ─────────────────────────
   initObjects();
-  bullets = [];
-  enemies = [];
-  pickups = [];
+  bullets = []; enemies = []; pickups = [];
   spawnStartTime = Date.now();
 
-  // ─── Kick off spawns and game loop ───────────────────────────
+  // ─── Turn on the game loop ───────────────────────────────────
   gameStarted = true;
   scheduleNextSpawn();
   scheduleNextBoss();
   requestAnimationFrame(loop);
-  
-  }
+}
+
 
   
 
@@ -616,18 +705,72 @@ function update() {
 
 
 
-  // ─── SHOOT & RELOAD ────────────────────────────
-  function shoot() {
-    const now = Date.now();
-    if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
-    player.lastShot = now;
-    for (let i = 0; i < currentWeapon.bullets; i++) {
-      const ang = player.angle + (Math.random() - 0.5) * currentWeapon.spread;
-      bullets.push({ x: player.x, y: player.y, ang, spd:14, size:8,damage: currentWeapon.damage * damageMultiplier });
+function shoot() {
+  const now = Date.now();
+  if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
+  player.lastShot = now;
+
+  // only Assault gets homing
+  let level = 0;
+  if (playerClass === 'assault') {
+    const homingId = SLOT_MAP.assault[0];      // first button → ability 5
+    const hb       = abilities[homingId];
+    if (hb && hb.active && hb.level > 0) {
+      level = hb.level;
     }
-    ammo--; updateUI();
-    if (ammo === 0) startReload();
   }
+
+  const radius = BASE_HOMING_RADIUS * level;
+  const dmgMul = level > 0
+               ? 1 + HOMING_DAMAGE_BONUS * (level - 1)
+               : 1;
+
+  for (let i = 0; i < currentWeapon.bullets; i++) {
+    let ang;
+    if (level > 0) {
+      // perfect‐lock homing
+      let target = null, best = Infinity;
+      for (const e of enemies) {
+        const d = dist(player.x, player.y, e.x, e.y);
+        if (d < best && d <= radius) {
+          best   = d;
+          target = e;
+        }
+      }
+      ang = target
+        ? Math.atan2(target.y - player.y, target.x - player.x)
+        : player.angle + (Math.random() - 0.5) * currentWeapon.spread;
+    } else {
+      ang = player.angle + (Math.random() - 0.5) * currentWeapon.spread;
+    }
+
+    bullets.push({
+      x:            player.x,
+      y:            player.y,
+      ang,
+      spd:          14,
+      size:         8,
+      damage:       currentWeapon.damage * damageMultiplier * dmgMul,
+      homing:       level > 0,
+      homingRadius: radius,
+      target:       null
+    });
+  }
+
+  ammo--;
+  updateUI();
+  if (ammo === 0) startReload();
+}
+
+
+
+
+
+
+
+
+
+
   function startReload() {
     reloading = true;
     reloadStart = Date.now();
@@ -681,6 +824,8 @@ function spawnEruption(){
 function update() {
   if (!player) return;
 
+  const sg = abilities[8];
+
   // ─── TIMING & DIFFICULTY ─────────────────────────────
   const now        = Date.now();
   const elapsedMs  = now - spawnStartTime;
@@ -688,7 +833,89 @@ function update() {
   updateMode(elapsedSec);
   updateClones();
 
-  
+    // ─── PROCESS STUN GRENADES ─────────────────────────────
+  for (let i = stunGrenades.length - 1; i >= 0; i--) {
+    const g   = stunGrenades[i];
+    const age = Date.now() - g.born;
+
+    // explode
+    if (!g.exploded && age >= STUN_FUSE_MS) {
+      g.exploded = true;
+
+      // interpolate count & duration by level
+      const lerp = (lvl) => (min, max) => min + (max - min) * (lvl - 1) / (abilities[8].maxLevel - 1);
+      const byLvlCount    = lerp(sg.level)(STUN_BASE_COUNT,    STUN_MAX_COUNT);
+      const byLvlDuration = lerp(sg.level)(STUN_BASE_DURATION, STUN_MAX_DURATION);
+
+      // stun nearest N enemies in radius
+      const inRange = enemies
+        .filter(e => dist(e.x, e.y, g.x, g.y) <= g.radius)
+        .sort((a,b) => dist(a.x,a.y,g.x,g.y) - dist(b.x,b.y,g.x,g.y))
+        .slice(0, Math.round(byLvlCount));
+
+      inRange.forEach(e => {
+        e.stunnedUntil = Date.now() + byLvlDuration;
+      });
+    }
+
+    // cleanup after explosion is done
+    if (age >= STUN_FUSE_MS + STUN_MAX_DURATION) {
+      stunGrenades.splice(i, 1);
+    }
+  }
+
+  // ─── PREVENT STUNNED ENEMIES FROM ACTING ─────────────────
+  enemies.forEach(e => {
+    if (e.stunnedUntil && Date.now() < e.stunnedUntil) {
+      // skip movement/shooting this frame
+      e._skip = true;
+    } else {
+      delete e._skip;
+    }
+  });
+
+  // ─── PROCESS STUN GRENADES ─────────────────────────────
+for (let i = stunGrenades.length - 1; i >= 0; i--) {
+  const g   = stunGrenades[i];
+  const age = Date.now() - g.born;
+
+  // explode
+  if (!g.exploded && age >= STUN_FUSE_MS) {
+    g.exploded = true;
+
+    // interpolate count & duration by level
+    const lerp = (lvl) => (min, max) => min + (max - min) * (lvl - 1) / (abilities[8].maxLevel - 1);
+    const byLvlCount    = lerp(sg.level)(STUN_BASE_COUNT,    STUN_MAX_COUNT);
+    const byLvlDuration = lerp(sg.level)(STUN_BASE_DURATION, STUN_MAX_DURATION);
+
+    // stun nearest N enemies in radius
+    const inRange = enemies
+      .filter(e => dist(e.x, e.y, g.x, g.y) <= STUN_RADIUS)
+      .sort((a,b) => dist(a.x,a.y,g.x,g.y) - dist(b.x,b.y,g.x,g.y))
+      .slice(0, Math.round(byLvlCount));
+
+    inRange.forEach(e => {
+      e.stunnedUntil = Date.now() + byLvlDuration;
+    });
+  }
+
+  // cleanup after explosion is done
+  if (age >= STUN_FUSE_MS + STUN_MAX_DURATION) {
+    stunGrenades.splice(i, 1);
+  }
+}
+
+// ─── PREVENT STUNNED ENEMIES FROM ACTING ─────────────────
+enemies.forEach(e => {
+  if (e.stunnedUntil && Date.now() < e.stunnedUntil) {
+    // skip movement/shooting this frame
+    e._skip = true;
+  } else {
+    delete e._skip;
+  }
+});
+
+
   // ─── OIL PUDDLE SLOWDOWN ─────────────────────────────
   // 'oilPuddles' are now oil puddles
   let inOil = false;
@@ -763,47 +990,72 @@ function update() {
     updateUI();
   }
 
-  // ─── ENEMY MOVEMENT ──────────────────────────────────
+  // ─── ENEMY MOVEMENT (skip stunned) ───────────────────
   enemies.forEach(e => {
+    if (e._skip) return;      // freeze stunned enemies
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
     e.x += Math.cos(ang) * e.speed;
     e.y += Math.sin(ang) * e.speed;
   });
-
-// ─── BULLET COLLISIONS ───────────────────────────────
+// ─── BULLET MOVEMENT, PERFECT HOMING & COLLISIONS ─────────────────
 for (let i = bullets.length - 1; i >= 0; i--) {
   const b = bullets[i];
 
-      // remove grenade bullets whose TTL has elapsed
-    if (b.isGrenadeBullet && Date.now() - b.birthTime > b.ttl) {
-      bullets.splice(i, 1);
-      continue;
-    }
+  // 1) Remove expired grenade bullets
+  if (b.isGrenadeBullet && Date.now() - b.birthTime > b.ttl) {
+    bullets.splice(i, 1);
+    continue;
+  }
 
-  /* 1) MOVE BULLET */
+  // 2) Perfect homing adjustment
+  if (b.homing) {
+    // if we don’t have a live target or it’s out of range, find the nearest valid one
+    if (
+      !b.target ||
+      !enemies.includes(b.target) ||
+      dist(b.x, b.y, b.target.x, b.target.y) > b.homingRadius
+    ) {
+      let nearest    = null;
+      let nearestD   = Infinity;
+      for (const e of enemies) {
+        const d = dist(b.x, b.y, e.x, e.y);
+        if (d < nearestD && d <= b.homingRadius) {
+          nearestD = d;
+          nearest  = e;
+        }
+      }
+      b.target = nearest;
+    }
+    // if we now have a valid target, snap our angle straight at it
+    if (b.target) {
+      b.ang = Math.atan2(b.target.y - b.y, b.target.x - b.x);
+    }
+  }
+
+  // 3) Move bullet
   b.x += Math.cos(b.ang) * b.spd;
   b.y += Math.sin(b.ang) * b.spd;
 
-  /* 2) DESPAWN IF OUT OF MAP */
+  // 4) Despawn off‐map
   if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
     bullets.splice(i, 1);
-    continue;                    // ✅ still inside the bullet-loop
+    continue;
   }
 
-  /* 3) HIT-TEST ALL ENEMIES */
+  // 5) Hit‐test
   for (let j = enemies.length - 1; j >= 0; j--) {
     const e = enemies[j];
     if (dist(b.x, b.y, e.x, e.y) < b.size + e.size / 2) {
-
-      // damage & delete bullet
       e.health -= b.damage;
       bullets.splice(i, 1);
-
-      if (e.health <= 0) handleEnemyDeath(j);   // central kill handler
-      break;                // bullet is gone, no need to check others
+      if (e.health <= 0) handleEnemyDeath(j);
+      break;
     }
   }
-  }
+}
+
+
+
 
 
 
@@ -978,6 +1230,43 @@ for (let i = grenades.length - 1; i >= 0; i--) {
     grenades.splice(i, 1);
   }
 }
+  // ─── MOVE & DETONATE RPGS ───────────────────────
+  for (let i = rpgMissiles.length - 1; i >= 0; i--) {
+    const m = rpgMissiles[i];
+    m.x += Math.cos(m.ang) * m.spd;
+    m.y += Math.sin(m.ang) * m.spd;
+    // hit any enemy?
+    const hitIdx = enemies.findIndex(e =>
+      dist(m.x, m.y, e.x, e.y) < (m.size + e.size/2)
+    );
+    if (hitIdx !== -1) {
+      // spawn one explosion
+      explosions.push({ x: m.x, y: m.y, radius: m.radius, damage: m.damage, life: 12, handled: false });
+      rpgMissiles.splice(i, 1);
+      continue;
+    }
+    // out of bounds?
+    if (m.x < 0 || m.x > mapSize || m.y < 0 || m.y > mapSize) {
+      rpgMissiles.splice(i, 1);
+    }
+  }
+
+  // ─── RESOLVE EXPLOSIONS ──────────────────────────
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const ex = explosions[i];
+    // deal damage only once when it first spawns
+    if (!ex.handled) {
+      enemies.forEach((e, j) => {
+        if (dist(ex.x, ex.y, e.x, e.y) <= ex.radius) {
+          e.health -= ex.damage;
+          if (e.health <= 0) handleEnemyDeath(j);
+        }
+      });
+      ex.handled = true;
+    }
+    ex.life--;
+    if (ex.life <= 0) explosions.splice(i, 1);
+  }
 
 
   updateUI();
@@ -1294,6 +1583,145 @@ eruptions.forEach(e => {
         ctx.fill();
       }
     });
+
+// ─── DRAW CENTURY TURRETS ────────────────────────────────
+const cg = abilities[7];
+if (cg && cg.turrets) {
+  cg.turrets.forEach(t => {
+    const dx = t.x - viewX, dy = t.y - viewY;
+    ctx.save();
+      ctx.translate(dx, dy);
+      ctx.rotate(t.angle);
+
+      // Base platform (circle)
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI*2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = '#8A2BE2';
+      ctx.fillRect(-10, -6, 20, 12);
+
+      // Barrel
+      ctx.fillStyle = '#DDA0DD';
+      ctx.fillRect(0, -4, 28, 8);
+
+      // Muzzle flash ring (small)
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 14, 0, Math.PI*2);
+      ctx.stroke();
+    ctx.restore();
+  });
+}
+
+
+
+  // ─── DRAW RPG MISSILES ────────────────────────────
+  rpgMissiles.forEach((m, i) => {
+    // 1️⃣ move
+    m.x += Math.cos(m.ang) * m.spd;
+    m.y += Math.sin(m.ang) * m.spd;
+
+    // 2️⃣ render rocket body + correct-facing nose
+    ctx.save();
+    ctx.translate(m.x - viewX, m.y - viewY);
+    ctx.rotate(m.ang);
+
+    // body (rectangle)
+    ctx.fillStyle = 'purple';
+    ctx.fillRect(-m.size/2, -m.size/2, m.size, m.size);
+
+    // nose (triangle pointing right)
+    ctx.beginPath();
+    ctx.moveTo(m.size/2, -m.size/3);           // top of base
+    ctx.lineTo(m.size/2 + m.size, 0);           // tip forward
+    ctx.lineTo(m.size/2,  m.size/3);           // bottom of base
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    // 3️⃣ TODO: collision detection & explosion when it hits…
+    //     Use `m.radius` for your AOE and `m.damage` for damage dealt.
+  });
+
+
+    // ─── DRAW EXPLOSIONS ─────────────────────────────
+    explosions.forEach(ex => {
+      const t = ex.life / 12;           // 1 → 0
+      ctx.save();
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = `rgba(255,150,0,${t})`;
+      ctx.lineWidth   = 4;
+      ctx.beginPath();
+      // let the circle shrink as life ticks
+      ctx.arc(
+        ex.x - viewX,
+        ex.y - viewY,
+        ex.radius * (1 - t),
+        0,
+        Math.PI*2
+      );
+      ctx.stroke();
+      ctx.restore();
+    });
+
+
+
+// ─── DRAW STUN GRENADES ─────────────────────────
+stunGrenades.forEach(g => {
+  const age = Date.now() - g.born;
+
+  if (!g.exploded) {
+    // (unchanged) draw the little rotating grenade icon
+    const px = g.x - viewX, py = g.y - viewY;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate((age / STUN_FUSE_MS) * Math.PI * 2);
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      ctx.lineTo(0, -8);
+      ctx.translate(0, -8);
+      ctx.rotate((Math.PI * 2 / 5));
+      ctx.lineTo(0, 8);
+      ctx.translate(0, 8);
+      ctx.rotate(-(Math.PI * 6 / 5));
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    // draw expanding stun ring
+    const explodeAge   = age - STUN_FUSE_MS;
+    // clamp between 0–1
+    const animProgress = Math.min(Math.max(explodeAge / STUN_ANIM_MS, 0), 1);
+    const radius       = STUN_RADIUS * animProgress;
+    const alpha        = 1 - animProgress;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#0ff';
+    // fade line‐width as it expands
+    ctx.lineWidth   = 4 * (1 - animProgress);
+    ctx.beginPath();
+    ctx.arc(
+      g.x - viewX,
+      g.y - viewY,
+      radius,
+      0, Math.PI * 2
+    );
+    ctx.stroke();
+    ctx.restore();
+  }
+});
+
+
+
   }
 
 
@@ -1383,131 +1811,222 @@ function renderLeader(){
       updateEXPDisplay();
       updateAbilitySlots();
       refreshSkillArrows();
-      showAbilityLevelupPanel();         // still optional UI
+      
     }
     updateEXPDisplay();
   }
-  function showAbilityLevelupPanel() {
-    const opts = document.getElementById('abilityOptions');
-    opts.innerHTML = '';
-    Object.entries(abilities).forEach(([key, a]) => {
-      if (player.level >= a.unlockLevel && a.level < a.maxLevel) {
-        const btn = document.createElement('button');
-        btn.textContent = `${a.name} (Lvl ${a.level})`;
-        btn.onclick = () => { a.level++; hideLevelupPanel(); };
-        opts.appendChild(btn);
-      }
-    });
-    document.getElementById('abilityLevelupPanel').classList.remove('hidden');
-  }
-  function hideLevelupPanel() {
-    document.getElementById('abilityLevelupPanel').classList.add('hidden');
-  }
 
-document.addEventListener('keydown', e => {
-  if (e.key >= '1' && e.key <= '4') {
-    const slot = document.querySelector(`.ability-slot[data-slot="${e.key}"]`);
-    const ab   = abilities[e.key];
-    if (!ab || player.level < ab.unlockLevel) return;
 
-    ab.active = !ab.active;
-    slot.classList.toggle('ability-active', ab.active);
 
-    if (e.key === '4') {
-      if (ab.active) {
-        spawnBackupClones(ab.level);
-      } else {
-        clones = [];
-      }
-    }
-  }
-});
+ 
+
+
+
+
+
+
 
 
   // 5. In game loop update: orbit logic
-  function updateAbilities() {
-    const a = abilities[1];
-    if (!a || !a.active || a.level === 0) return;
-    const bladeCount = 2 + (a.level - 1);                    // +1 each rank
-    const bladeDmg   = bladeOrbitCfg.baseDamage  * (a.level);
+  // in paintball.js, near the other update-clones / update-spawns calls:
 
-  orbitAngle += bladeOrbitCfg.speed;
 
-  for (let i = 0; i < bladeCount; i++) {
-    const ang = orbitAngle + i * (Math.PI * 2 / bladeCount);
-    const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
-    const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
+// paintball.js
 
-    for (let j = enemies.length - 1; j >= 0; j--) {
-      const e = enemies[j];
-      if (dist(tx,ty,e.x,e.y) < (e.size/2)+12){   // radius-based
-        if (e.isBoss) bladeOrbitCfg.damage *= 1; // no change – radius test above now hits boss centre
-        e.health -= bladeDmg * damageMultiplier;
-        if (e.health <= 0) handleEnemyDeath(j);
+// these timers must live outside the function so they accumulate:
+let poisonTimer      = 0;
+let homingDrainTimer = 0;
+
+function updateAbilities() {
+  // ─── BLADE ORBIT ─────────────────────────────
+  const blade = abilities[1];
+  if (blade && blade.active && blade.level > 0) {
+    const bladeCount = 2 + (blade.level - 1);
+    const bladeDmg   = bladeOrbitCfg.baseDamage * blade.level;
+
+    orbitAngle += bladeOrbitCfg.speed;
+    for (let i = 0; i < bladeCount; i++) {
+      const ang = orbitAngle + i * (Math.PI * 2 / bladeCount);
+      const tx  = player.x + Math.cos(ang) * bladeOrbitCfg.radius;
+      const ty  = player.y + Math.sin(ang) * bladeOrbitCfg.radius;
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (dist(tx, ty, e.x, e.y) < e.size / 2 + 12) {
+          e.health -= bladeDmg * damageMultiplier;
+          if (e.health <= 0) handleEnemyDeath(j);
+        }
       }
     }
   }
-    const ins = abilities[2];
+
+  // ─── INSANITY ─────────────────────────────────
+  const ins = abilities[2];
   if (ins && ins.active && ins.level > 0) {
-
-    /* multiplier: 1 + lvl/2 */
-    damageMultiplier = 1 + 0.5 * ins.level;
-
-    /* speed ×2 while active */
-    player.speed = baseSpeed * 2;
-
-    /* 25 HP poison per second */
-    poisonTimer += 16;                   // ≈ frame time
-    if (poisonTimer >= 1000) {
-      if (player.health > 25) player.health -= 25;   // never drop below 1
-      else {abilities[2].active = false;              // auto-toggle off
-        damageMultiplier    = 1;
-        player.speed        = baseSpeed;
+    // auto-disable if too low
+    if (player.health <= 25) {
+      ins.active        = false;
+      damageMultiplier  = 1;
+      player.speed      = baseSpeed;
+    } else {
+      damageMultiplier  = 1 + 0.5 * ins.level;
+      player.speed      = baseSpeed * 2;
+      poisonTimer     += 16;
+      if (poisonTimer >= 1000) {
+        player.health = Math.max(1, player.health - 25);
+        poisonTimer   = 0;
       }
-      poisonTimer = 0;
+      // rainbow trail...
+      hue = (hue + 3) % 360;
+      trails.push({ x: player.x, y: player.y, hue, life: TRAIL_LIFE });
+      if (trails.length > 150) trails.shift();
     }
-
-    /* colour-cycle */
-    hue = (hue + 3) % 360;               // adjust rate here
-   if (ins && ins.active){
-    trails.push({x:player.x,y:player.y,hue,life:TRAIL_LIFE});
-    if (trails.length>150) trails.shift();
-    }
-
   } else {
+    // reset when off
     damageMultiplier = 1;
     player.speed     = baseSpeed;
     hue              = 0;
   }
 
+  // ─── HOMING BULLETS ────────────────────────────
+  const hb = abilities[5];
+  if (hb && hb.active && hb.level > 0) {
+    // auto-disable if too low
+    if (player.health <= 1) {
+      hb.active = false;
+    } else {
+      homingDrainTimer += 16;
+      if (homingDrainTimer >= 1000) {
+        player.health    = Math.max(1, player.health - 1);
+        homingDrainTimer = 0;
+      }
+    }
+  }
 
-
-  // ─── GRENADE ABILITY ───────────────────────────
+  // ─── GRENADES (slot 3) ─────────────────────────
   const gren = abilities[3];
   if (gren && gren.active && gren.level > 0) {
     const now = Date.now();
     if (!gren.lastThrow) gren.lastThrow = 0;
-    // cooldown per level (ms)
-    const cds = [ null, 5000, 4000, 3000, 2000, 1000 ];
+    const cds = [null,5000,4000,3000,2000,1000];
     if (now - gren.lastThrow >= cds[gren.level]) {
       gren.lastThrow = now;
-      grenades.push({
-        x: player.x,
-        y: player.y,
-        born: now,
-        fuse: 1000       // 1 second fuse
-      });
+      grenades.push({ x: player.x, y: player.y, born: now, fuse: 1000 });
     }
   }
 
 
 
+  // ─── RPG LAUNCHER ────────────────────────────
+  const rpg = abilities[6];
+  if (rpg && rpg.active && rpg.level > 0) {
+    const now = Date.now();
+    if (!rpg.lastFire) rpg.lastFire = 0;
 
+    // level1 → 5000ms, lvl2 → 4000ms, …, lvl5 → 1000ms
+    const interval = (6 - rpg.level) * 1000;
+    if (now - rpg.lastFire >= interval) {
+      rpg.lastFire = now;
 
+      // calculate scaled properties
+      const scale   = 1 + RPG_SCALE_PER_LVL * (rpg.level - 1);
+      const size    = RPG_BASE_SIZE   * scale;    // rocket half-width
+      const radius  = RPG_BASE_RADIUS * scale;    // explosion AOE
+      const damage  = RPG_BASE_DAMAGE * (1 +  (rpg.level - 1));
 
-
-
+      rpgMissiles.push({ x: player.x, y: player.y, ang: player.angle, spd: 8, size, damage, radius });
+    }
   }
+    // ─── CENTURY GUN ─────────────────────────────────────────
+    const cg = abilities[7];
+    if (cg && cg.active && cg.level > 0) {
+      const now       = Date.now();
+      const cycle     = CENTURY_UPTIME_MS + CENTURY_COOLDOWN_MS;
+      if (!cg.phaseStart) cg.phaseStart = now;
+      const elapsed   = (now - cg.phaseStart) % cycle;
+      const inUpTime  = elapsed < CENTURY_UPTIME_MS;
+
+      if (inUpTime) {
+        if (!cg.turrets) {
+          cg.turrets = [];
+          for (let i = 0; i < cg.level; i++) {
+            const a = Math.random() * Math.PI * 2;
+            cg.turrets.push({
+              x: player.x + Math.cos(a) * CENTURY_RADIUS,
+              y: player.y + Math.sin(a) * CENTURY_RADIUS,
+              lastShot: 0,
+              angle: a
+            });
+          }
+        }
+
+        const interval = BASE_CENTURY_RATE / Math.pow(1.5, cg.level - 1);
+        const damage   = BASE_CENTURY_DAMAGE * (1 + 0.15 * (cg.level - 1));
+
+        cg.turrets.forEach(t => {
+          // find nearest enemy within CENTURY_RANGE
+          let nearest = null, nd = Infinity;
+          enemies.forEach(e => {
+            const d = dist(t.x, t.y, e.x, e.y);
+            if (d < nd && d <= CENTURY_RANGE) {
+              nd = d;
+              nearest = e;
+            }
+          });
+
+          // only aim/fire if there's someone in range
+          if (nearest) {
+            t.angle = Math.atan2(nearest.y - t.y, nearest.x - t.x);
+            if (now - t.lastShot >= interval) {
+              bullets.push({
+                x:    t.x + Math.cos(t.angle) * 20,
+                y:    t.y + Math.sin(t.angle) * 20,
+                ang:  t.angle,
+                spd:  10,
+                size: 8,
+                damage
+              });
+              t.lastShot = now;
+            }
+          }
+        });
+      } else {
+        delete cg.turrets;
+      }
+    } else {
+      delete abilities[7].turrets;
+    }
+
+
+  // ─── STUN GRENADE (slot 8) ─────────────────────────
+  const sg = abilities[8];
+  if (sg && sg.active && sg.level > 0) {
+    const now = Date.now();
+    if (!sg.lastDrop) sg.lastDrop = 0;
+
+    if (now - sg.lastDrop >= STUN_COOLDOWN_MS) {
+      // compute a bigger radius per level (+30% per extra level, tweak as you like)
+      const radius = STUN_RADIUS * (1 + 0.3 * (sg.level - 1));
+      stunGrenades.push({
+        x:       player.x,
+        y:       player.y,
+        born:    now,
+        exploded:false,
+        radius
+      });
+      sg.lastDrop = now;
+    }
+  }
+  // after all your ability logic, add: returns buttons to untoggled state
+  document.querySelectorAll('.ability-slot').forEach(slotEl => {
+    const id = +slotEl.dataset.slot;
+    const ab = abilities[id];
+    slotEl.classList.toggle('ability-active', !!ab && ab.active);
+  });
+
+
+
+}
+
 
   function drawOrbitTriangles() {
     ctx.fillStyle = 'crimson';
@@ -1571,27 +2090,83 @@ function dist(x1, y1, x2, y2) {
 
     enemies.splice(idx, 1);        // remove from array
   }
-  function prepareAbilityUI() {
-    document.querySelectorAll('.ability-slot').forEach(slot => {
-      // skip if already wrapped
-      if (slot.parentElement.classList.contains('slot-wrap')) return;
-      const wrap = document.createElement('div');
-      wrap.className = 'slot-wrap';
-      wrap.style.position = 'relative';
-      wrap.style.display  = 'inline-block';
-      slot.parentElement.replaceChild(wrap, slot);
-      wrap.appendChild(slot);
+// 1) Set up each slot exactly once, *after* your slots have been remapped & unlocked
+// 1) Set up each slot exactly once, *after* your slots have been remapped & unlocked
+function prepareAbilityUI() {
+  document.querySelectorAll('.ability-slot').forEach(slotEl => {
+    const raw = slotEl.dataset.slot;
+    if (!raw || isNaN(raw)) return;           // ← skip uninitialized slots
+    const abilityId = +raw;
 
-      const arrow = document.createElement('div');
+    // position context for the arrow
+    slotEl.style.position = 'relative';
+
+    // inject a little green arrow, if we haven’t yet
+    let arrow = slotEl.querySelector('.skill-up-btn');
+    if (!arrow) {
+      arrow = document.createElement('div');
       arrow.className = 'skill-up-btn';
-      arrow.onclick = () => attemptUpgrade(+slot.dataset.slot, arrow);
-      wrap.appendChild(arrow);
+      slotEl.appendChild(arrow);
+
+      // spend a point when I click *the arrow*, but don’t bubble up
+      arrow.addEventListener('click', e => {
+        e.stopPropagation();
+        attemptUpgrade(abilityId, arrow);
+      });
+    }
+
+    // clicking *the rest* of the slot toggles active/inactive
+    slotEl.addEventListener('click', () => {
+      const ab = abilities[abilityId];
+      if (!ab || player.level < ab.unlockLevel) return;
+      ab.active = !ab.active;
+      slotEl.classList.toggle('ability-active', ab.active);
+      if (ab.name === 'Backup') {
+        if (ab.active) spawnBackupClones(ab.level);
+        else            clones = [];
+      }
     });
+  });
+}
+
+// call *this* every time you gain XP, level up, or spend a point:
+function refreshSkillArrows() {
+  document.querySelectorAll('.skill-up-btn').forEach(btn => {
+    // the arrow’s parent is exactly the .ability-slot
+    const abilityId = +btn.parentElement.dataset.slot;
+    const ab        = abilities[abilityId];
+    const canSpend  = skillPoints > 0
+                   && ab.level < ab.maxLevel
+                   && player.level >= ab.unlockLevel;
+
+    btn.classList.toggle('show',     canSpend);
+    btn.classList.toggle('disabled', !canSpend);
+  });
+}
+
+// actually spend a point:
+function attemptUpgrade(abilityId, arrowEl) {
+  const ab = abilities[abilityId];
+  if (!ab || ab.level >= ab.maxLevel || skillPoints === 0) return;
+
+  ab.level++;
+  skillPoints--;
+
+  // if Backup is already active, bump clones immediately
+  if (ab.name === 'Backup' && ab.active) {
+    spawnBackupClones(ab.level);
   }
+
+  // re-unlock any newly available ranks, refresh arrows
+  updateAbilitySlots();
+  refreshSkillArrows();
+}
+
+
  /* ── Toggle arrow visibility based on points / max rank ─ */
   function refreshSkillArrows() {
     document.querySelectorAll('.skill-up-btn').forEach(btn => {
-      const slot = +btn.parentElement.querySelector('.ability-slot').dataset.slot;
+      const slot = +btn.parentElement.dataset.slot;
       const ab   = abilities[slot];
       if (!ab) { btn.classList.add('disabled'); return; }
       const can = skillPoints>0 && ab.level < 5 && player.level >= ab.unlockLevel;
