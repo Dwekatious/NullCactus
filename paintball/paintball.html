@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-    <!-- Google tag (gtag.js) -->
+  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-YX167KL6Q1"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -10,180 +10,505 @@
 
     gtag('config', 'G-YX167KL6Q1');
   </script>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Null.io Paintball</title>
-  <link rel="stylesheet" href="paintball.css">
+    <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Null Cactus</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="canonical" href="https://www.nullcactus.com/">
+
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+  <link rel="icon" href="favicon-16x16" type="image/png" sizes="32x32" />
+  <!-- optional for iOS home-screen: -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="robots" content="index,follow">
+  <meta
+    name="description"
+    content="description" content="Null Cactus Studios delivers free HTML5 browser games—play Paint Ball, Null.io, physics simulations & more. Enjoy action, strategy & puzzle games online today!."/>
+
+
+
+
+  <style>
+    html { scroll-behavior: smooth; }
+    :root {
+      --clr-primary: #1E3A8A;
+      --clr-secondary: #4B5563;
+      --clr-bg: #111827;
+      --clr-card: #1F2937;
+      --clr-text: #E5E7EB;
+    }
+    /* logo color cycle over 30s through blues→white→dark */
+@keyframes logoColorCycle {
+  0%   { color: #001f3f; }  /* dark navy */
+  25%  { color: #0074D9; }  /* bright blue */
+  50%  { color: #FFFFFF; }  /* white */
+  75%  { color: #7FDBFF; }  /* light sky blue */
+  100% { color: #001f3f; }
+}
+.logo-text {
+  font-size: 3rem;       /* bump as high as you like */
+  margin-left: -170px;    /* pushes nav items to the right */
+  /* keep your existing animation: */
+  animation: logoColorCycle 30s linear infinite;
+}
+
+/* refined underline-on-hover nav links */
+.nav-link {
+  position: relative;
+  color: var(--clr-text);
+  transition: color .3s ease;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0;
+  width: 100%; height: 2px;
+  background: var(--clr-primary);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform .3s ease;
+}
+.nav-link:hover {
+  color: var(--clr-primary);
+}
+.nav-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+
+#starfield {
+  /* behind everything in hero */
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+
+
+
+
+
+
+/* change log style */
+  /* seamless auto-scroll */
+  @keyframes scrollLoop {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+  .changelog-viewport {
+    overflow: hidden;
+    height: 24rem;              /* adjust to your desired visible height */
+    position: relative;
+  }
+  .changelog-inner {
+    display: flex;
+    flex-direction: column;
+    animation: scrollLoop 60s linear infinite;
+  }
+  /* make sure each entry is same height so 50% == one full list */
+  .changelog-item {
+    flex: 0 0 auto;
+    margin-bottom: 1.5rem;
+  }
+  /* fade-up only on first reveal */
+  .fade-up { opacity: 0; animation: fadeUp 0.6s ease-out forwards; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  </style>
 </head>
-<body>
-  <header id="mainHeader">
-    <nav id="hud">
-      <div class="hud-group hud-left">
-        <a href="../index.html"><div class="logo">NullCactus</div></a>
-      </div>
-      <div class="hud-group hud-center">
-        <div class="hud-item">
-          <strong>Gold</strong>
-          <div class="value" id="gold">0</div>
-        </div>
-        <div class="hp-container">
-          <div class="bar">
-            <div class="bar-inner" id="healthBar"></div>
-          </div>
-          <div class="hp-text">
-            <span id="healthText">100</span>/<span id="maxHealthText">100</span>
-          </div>
-        </div>
-        <div class="hud-item">
-          <strong>Ammo</strong>
-          <div class="value">
-            <span id="ammo">0</span>/<span id="reserve">0</span>
-          </div>
-        </div>
-      </div>
-      <div class="hud-group hud-right">
-        <div class="hud-item">
-          <strong>Score</strong>
-          <div class="value" id="score">0</div>
-        </div>
-      </div>
-    </nav>
-  </header>
 
-  <div id="ui">
-    <h2>Enter Name</h2>
-    <input id="nameInput" placeholder="Player" maxlength="12" />
-    <button id="startBtn">Start Game</button>
-    <div id="leaderboard">
-      <h3>Leaderboard</h3>
-      <ul id="lbList"></ul>
+
+
+
+<body class="bg-[var(--clr-bg)] text-[var(--clr-text)] font-sans antialiased">
+
+<!-- NAV -->
+<header class="fixed inset-x-0 top-0 z-50 bg-[var(--clr-bg)] shadow-md">
+  <nav class="max-w-6xl mx-auto flex items-center justify-start px-6 py-5">
+    <!-- Animated, enlarged logo pinned left -->
+    <a href="#" class="logo-text text-5xl font-bold mr-auto">
+      Null Cactus
+    </a>
+
+    <!-- Desktop menu -->
+    <ul class="hidden md:flex space-x-8 text-lg md:text-xl">
+
+      <li><a href="#showcase" class="nav-link">Games</a></li>
+      <li><a href="#contact"  class="nav-link">Latest Updates</a></li>
+    </ul>
+
+    <!-- Mobile toggle -->
+    <button class="md:hidden p-2" onclick="document.getElementById('menu').classList.toggle('hidden')">
+      <svg class="w-6 h-6 text-[var(--clr-text)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- Mobile menu (unchanged) -->
+  <div id="menu" class="hidden md:hidden bg-[var(--clr-bg)]">
+    <a href="#showcase" class="block px-6 py-4 hover:bg-[var(--clr-card)]">Games</a>
+    <a href="#contact"  class="block px-6 py-4 hover:bg-[var(--clr-card)]">Latest Updates</a>
+  </div>
+</header>
+
+
+
+
+ <!-- HERO -->
+<!-- HERO -->
+<section
+  id="hero"
+  class="relative overflow-hidden pt-20"
+  style="background-color: #15151a;"  
+>
+  <!-- starfield canvas -->
+  <canvas id="starfield" class="absolute inset-0 w-full h-full"></canvas>
+
+  <!-- content above the canvas -->
+  <div class="relative z-10 max-w-6xl mx-auto px-4 py-32 text-center">
+    <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">
+      NullCactus Studios
+    </h1>
+    <p class="text-lg text-gray-200 mb-8">
+      This website Is Under Construction, Check Our Latest Updates Below!
+    </p>
+    <a
+      href="single_file_games/about.html"
+      class="inline-block bg-white text-[var(--clr-primary)] font-semibold py-3 px-6 rounded-full shadow hover:opacity-90 transition"
+    >
+      Learn More
+    </a>
+  </div>
+</section>
+
+
+
+  <!-- FEATURES -->
+ <!-- <section id="features" class="py-20">
+    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 5a2 2 0 012-2h4l2 2h4a2 2 0 012 2v2H2V5z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Custom Software</h3>
+        <p class="text-gray-300">Tailored solutions that fit your business needs perfectly.</p>
+      </div>
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 5h12v2H4V5zM4 9h12v2H4V9zM4 13h12v2H4v-2z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">UI/UX Design</h3>
+        <p class="text-gray-300">Engaging interfaces for maximum user satisfaction.</p>
+      </div>
+      <div class="bg-[var(--clr-card)] p-6 rounded-xl shadow-lg text-center">
+        <div class="mb-4">
+          <svg class="mx-auto w-10 h-10 text-[var(--clr-primary)]" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a1 1 0 011 1v7h7a1 1 0 110 2h-7v7a1 1 0 11-2 0v-7H2a1 1 0 110-2h7V3a1 1 0 011-1z" />
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Consulting</h3>
+        <p class="text-gray-300">Expert guidance to streamline your tech strategy.</p>
+      </div>
+    </div>
+  </section> -->
+
+  <!-- SHOWCASE -->
+    
+  <section id="showcase" class="py-20 bg-[var(--clr-bg)]">
+    <div class="max-w-6xl mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center mb-12">Our list of games, more to come!</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="null_io_bg.png" alt="Demo 1" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Null.io</h4>
+            <p class="text-gray-300 mb-4">This game is not functional and just a placeholder</p>
+            <a href="single_file_games/nullio.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Null.io →</a>
+          </div>
+        </div>
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="paintball2.png" alt="Demo 2" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Shoot'em All!</h4>
+            <p class="text-gray-300 mb-4">2D Rogue-Like Action Shooting Game (In Open Testing Phase, Adding More Features Everyday)</p>
+            <a href="paintball/paintball.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Box Shooter →</a>
+          </div>
+        </div>
+        <div class="bg-[var(--clr-card)] rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+          <img src="physics.png" alt="Demo 3" class="w-full h-48 object-cover">
+          <div class="p-6">
+            <h4 class="text-2xl font-bold mb-2">Physics simulation!</h4>
+            <p class="text-gray-300 mb-4">A Simple Physics Simulation (Functional Placeholder)</p>
+            <a href="single_file_games/physics.html" class="text-[var(--clr-primary)] font-semibold hover:underline">Play Physics →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+
+
+
+
+
+
+
+
+<!-- CHANGELOG -->
+
+<section id="changelog" class="py-16 bg-[#001f3f]">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-[var(--clr-bg)] p-8 rounded-2xl shadow-2xl">
+      <h2 class="text-3xl font-bold text-center text-[var(--clr-primary)] mb-8 fade-up" style="animation-delay:0.1s">
+        📝 Changelog
+      </h2>
+
+      <div class="changelog-viewport">
+        <div class="changelog-inner">
+
+          <!-- Spotter Drone (newest) -->
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Spotter Drone</span>
+              <span class="text-sm text-gray-400">v1.3.7 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Spotter Drone”: deploys a protective drone that hovers around you, granting randomized buffs—speed boost, instant heal, force-field pushback, or grenade burst—every 10 s. Upgrades increase effect frequency, duration, and strength.
+            </p>
+          </div>
+
+          <!-- Existing entries -->
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Stun Grenade</span>
+              <span class="text-sm text-gray-400">v1.3.6 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Stun Grenade”: auto‐drops a timed grenade that explodes and stuns up to 50 enemies for 3 s (up to 500 enemies & 8 s at max rank). Cooldown: 10 s.
+            </p>
+          </div>
+
+          <div class="changelog-item bg-[#001f3f] p-6 rounded-xl shadow-lg">
+            <div class="flex justify-between">
+              <span class="font-semibold">Shoot’em All!: Century Gun</span>
+              <span class="text-sm text-gray-400">v1.3.5 · Today</span>
+            </div>
+            <p class="mt-2 text-gray-200">
+              Added “Century Gun” turrets: spawn for 20 s with 5 s cooldown, auto‐fire at enemies within 300 px. Each level adds additional turrets, +15 % damage and +50 % fire-rate per rank.
+            </p>
+          </div>
+
+          <!-- …and so on… -->
+
+        </div>
+      </div>
     </div>
   </div>
+</section>
 
-  <div id="gameOver">
-    <h2>Game Over</h2>
-    <div>Your Score: <span id="finalScore">0</span></div>
-    <button id="restartBtn">Restart</button>
-  </div>
 
-  <div id="upgradePanel">
-    <div class="panel-header">Upgrades &amp; Weapons</div>
-    <div class="panel-section">
-      <div class="section-title">Stats (Gold: <span id="upGold">0</span>)</div>
-      <button class="upgrade-btn" data-upgrade="health">+20 HP</button>
-      <button class="upgrade-btn" data-upgrade="damage">+5 DMG</button>
-      <button class="upgrade-btn" data-upgrade="magSize">+5 Mag</button>
-      <button class="upgrade-btn" data-upgrade="fireRate">–10% FR</button>
-      <button class="upgrade-btn" data-upgrade="magnet">Magnetic Pull</button>
+
+
+
+
+
+
+  <!-- CONTACT -->
+ <section id="contact" class="py-16 bg-[#001f3f]">
+    <div class="max-w-4xl mx-auto px-4 text-center">
+      <h2 class="text-3xl font-bold mb-6">Get In Touch at NullCactus4life@gmail.com</h2>
+      <!--  <form class="grid grid-cols-1 sm:grid-cols-2 gap-6"> !-->
+        <!--  <input type="text" placeholder="Your Name" class="p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required> !-->
+        <!--  <input type="email" placeholder="Your Email" class="p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required> !-->
+        <!--  <textarea placeholder="Your Message" rows="4" class="sm:col-span-2 p-4 rounded-lg bg-[var(--clr-card)] placeholder-gray-500 focus:outline-none" required></textarea> !-->
+       <!-- <button type="submit" class="sm:col-span-2 bg-[var(--clr-primary)] text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">Send Message</button> !-->
+      <!--  </form> !-->
     </div>
+  </section> 
 
-  </div>
-  
 
-<!-- ─── CLASS-SELECTION PANEL ────────────────────────────── -->
-<div id="classPanel">
-    <h1 class="cls-title">Choose Your Class</h1>
-
-    <div class="cls-frame">
-        <div class="cls-item" data-class="tank">
-            <span class="cls-label">Tank</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="assault">
-            <span class="cls-label">Assault</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="sniper">
-            <span class="cls-label">Sniper</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="medic">
-            <span class="cls-label">Medic</span>
-            <div class="cls-icon"></div>
-        </div>
+  <!-- FOOTER -->
+  <footer class="bg-[#001f3f] py-6 text-center text-sm text-gray-400">
+    <div class="max-w-6xl mx-auto px-4">
+      © 2025 Null Cactus Software Solutions. All rights reserved.
     </div>
-</div>
-
-
-
-  <!-- warning message -->
-  <div id="classWarning" class="warning">Please select a class</div>
-
-</div>
-
-
-
-
-  <canvas id="game"></canvas>
-  
+  </footer>
 
 
 
 
 
 
-<!-- ─── DEBUG TOOLS ─────────────────────────────── -->
-    <!--
-<button id="dbgToggle">Debug Tools</button>
-
-<div id="dbgPanel">
-  <h4>Cheats</h4>
-  <button id="dbgInfGold">∞ Gold</button>
-  <button id="dbgInfHP">∞ Health</button>
-
-  <h4>Phase</h4>
-  <select id="dbgPhaseSelect"></select>
-
-  <h4>Runtime Stats</h4>
-  <div id="dbgStats">
-    enemies: 0<br>
-    maxWave: 0<br>
-    spawnDelay: 0 ms
-  </div>
-
-  <h4>Tweaks</h4>
-  <div class="row">
-    <input id="dbgMinDelay" type="number" min="50" value="250" title="Min delay (ms)">
-    <button id="dbgSaveDelay">Set Delay</button>
-  </div>
-
-  <div class="row">
-    <input id="dbgMaxEnemies"  type="number" min="50"  value="250" title="Cap"/>
-    <button id="dbgSaveMax">Set Cap</button>
-  </div>
-  <div class="row">
-    <input id="dbgForceSpawn" type="number" min="1" value="5"  title="N"/>
-    <button id="dbgSpawnN">Spawn N</button>
-  </div>
-  <button id="dbgKillAll" style="background:#b00">Kill all enemies</button>
-</div>
-
--->
 
 
 
 
-<!-- ─── EXP & ABILITY PANEL (hidden until game start) ─── -->
-<div id="expAbilityPanel" class="ability-panel" style="display:none">
-
-  <div class="ability-buttons">
-    <div class="ability-slot locked" data-slot="1" data-unlock="5">Orbiters</div>
-    <div class="ability-slot locked" data-slot="2" data-unlock="10">Rage</div>
-    <div class="ability-slot locked" data-slot="3" data-unlock="15">Grenade</div>
-    <div class="ability-slot locked" data-slot="4" data-unlock="20">Backup</div>
-  </div>
-    <div id="expBarContainer">
-    <div id="expBar"><div id="expFill"></div></div>
-    <span id="expText">Level: 1 • EXP: 0</span>
-  </div>
-</div>
 
 
+<script>
+// STARFIELD + FULLY CONFIGURABLE COMETS
+(() => {
+  const canvas = document.getElementById('starfield'),
+        ctx    = canvas.getContext('2d');
+  let w, h, stars = [], shooting = [];
+
+  // ─── CONFIGURATION ────────────────────────────
+  const config = {
+    spawnBase:      1000,   // minimum ms between comets
+    spawnVar:       1,   // extra random ms
+    tailFactor:     0.09,    // tail length = len * this
+    lifeMult:       3,    // lifespan multiplier
+    fadeAlpha:      0.9,    // tail end opacity (0 = fully transparent)
+    opacityFixed:   0.0,    // if >0, every comet uses this opacity
+    opacityRandom:  0.6,  // if opacityFixed===0, opacity = random(0, opacityRandom)
+    fadeDuration:   60   // ← number of frames a comet fades out over
+  };
 
 
-  <script src="paintball.js"></script>
+  // ─── SETUP & RESIZE ───────────────────────────
+  function resize(){
+    w = canvas.width  = canvas.clientWidth;
+    h = canvas.height = canvas.clientHeight;
+    initStars();
+  }
+  function initStars(){
+    stars = [];
+    for(let i=0;i<200;i++){
+      stars.push({
+        x: Math.random()*w,
+        y: Math.random()*h,
+        r: Math.random()*1.2+0.3,
+        alpha: Math.random(),
+        dAlpha: (Math.random()*0.005)+0.002
+      });
+    }
+  }
+
+  // ─── SPAWN COMET ─────────────────────────────
+  function makeShootingStar(){
+    const edge = Math.floor(Math.random()*4),
+          p    = {x:0,y:0};
+    if(edge===0){ p.x=Math.random()*w;  p.y=-10;      }
+    else if(edge===1){ p.x=w+10;        p.y=Math.random()*h; }
+    else if(edge===2){ p.x=Math.random()*w;  p.y=h+10; }
+    else { p.x=-10; p.y=Math.random()*h; }
+
+    const tx = Math.random()*w,
+          ty = Math.random()*h;
+    let vx = tx-p.x, vy = ty-p.y,
+        mag = Math.hypot(vx,vy)||1;
+    vx/=mag; vy/=mag;
+
+    const speed = (Math.random()*5+5)*0.65,
+          len   = (Math.random()*300+100)*1.35;
+
+    // determine opacity
+    const opacity = config.opacityFixed > 0
+      ? config.opacityFixed
+      : Math.random() * config.opacityRandom;
+
+    shooting.push({
+      x: p.x, y: p.y,
+      dx: vx*speed, dy: vy*speed,
+      speed, len,
+      life: 0,
+      // fully random hex color:
+      color: '#' + Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,'0'),
+      opacity
+    });
+  }
+
+  // ─── DRAW LOOP ──────────────────────────────
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+
+    // twinkling stars
+    stars.forEach(s=>{
+      s.alpha += s.dAlpha;
+      if(s.alpha<=0||s.alpha>=1) s.dAlpha *= -1;
+      ctx.globalAlpha = s.alpha;
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // draw comets
+    for(let i=0;i<shooting.length;i++){
+      const m = shooting[i],
+            tf = config.tailFactor,
+            tailLen = m.len * tf,
+            x2 = m.x - m.dx*tailLen,
+            y2 = m.y - m.dy*tailLen;
+
+      // gradient from head→tail
+      const grad = ctx.createLinearGradient(m.x,m.y,x2,y2);
+      grad.addColorStop(0, m.color);
+      grad.addColorStop(1, `rgba(0,0,0,${config.fadeAlpha})`);
+
+      ctx.globalAlpha = m.opacity;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = 2;
+      ctx.beginPath();
+      ctx.moveTo(m.x,m.y);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // advance
+      m.x += m.dx;
+      m.y += m.dy;
+      m.life++;
+
+      // remove when out or expired
+     // after its normal lifespan, begin fading
+     const maxLife = (m.len / m.speed) * config.lifeMult;
+     if (m.life > maxLife) {
+       m.opacity -= 1 / config.fadeDuration;
+    }
+     // remove when fully faded or offscreen
+     if (
+       m.opacity <= 0 ||
+       m.x < -50 || m.x > w + 50 ||
+       m.y < -50 || m.y > h + 50
+     ) {
+      shooting.splice(i, 1);
+       i--;
+     }
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  // ─── INIT & SCHEDULE ─────────────────────────
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+  (function schedule(){
+    makeShootingStar();
+    setTimeout(schedule, config.spawnBase + Math.random()*config.spawnVar);
+  })();
+})();
+</script>
+
+
+
+
+
+
+
+
 </body>
 </html>
