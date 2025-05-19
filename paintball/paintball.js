@@ -5,9 +5,31 @@
 const SLOT_MAP = {
   default: [1, 2, 3, 4],   // keys 1–4 → abilities[1…4]
   assault: [5, 6, 7, 8],   // keys 1–4 → abilities[5…8]
+  sniper:   [9, 10, 11, 12],   // ← added
   // add more classes here if needed
 };
+// SPOTTER DRONE GLOBALS
+let spotterDrone = null;
+const DRONE_RADIUS         = 150;    // how far from player it can wander
+const DRONE_MOVE_INTERVAL  = 1000;    // pick a new point every 0.5s
+const DRONE_MOVE_SPEED     = 2;      // px/frame toward target
+const DRONE_BOB_FREQ       = 200;    // ms for bobbing
+const DRONE_BOB_AMP        = 5;      // px amplitude
+const DRONE_EFFECT_INTERVAL= 10000;   // ms between random effects
+const DRONE_FORCEFIELD_BASE = 2000;   // 2 s at level 1
+const DRONE_FORCEFIELD_PER_LVL = 500; // +0.5 s per extra level
 
+// force-field settings
+let forcefieldRadius = 0;
+let speedTrails = [];
+
+
+// ─── PIERCING BULLET GLOBALS ─────────────────────────
+let piercingShots = [];
+const PIERCE_BASE_INTERVAL      = 5000; // ms at lvl1
+const PIERCE_INTERVAL_DECREMENT = 1000;  // -1s per extra lvl
+const PIERCE_BASE_COUNT         = 10;    // # enemies pierced at lvl1
+const PIERCE_MAX_COUNT          = 100;   // at lvl5
 
 // Century Gun globals
 const CENTURY_RADIUS       = 300;      // spawn radius around player
@@ -17,6 +39,44 @@ const BASE_CENTURY_DAMAGE  = 50;       // level 1 damage
 const BASE_CENTURY_RATE    = 500;     // level 1 fires every 2 s
 let centuryPhaseStart      = 0;        // when the current cycle began
 const CENTURY_RANGE = 300;
+
+
+// up near the top, alongside your other globals:
+let shuriTraps    = [];
+let shuricanes    = [];
+
+// how often the trap spawns a new blade (ms)
+const SHURI_FIRE_RATE   = 20;
+
+// how fast the trap “spins” its firing angle (radians/frame)
+const SHURI_SPIN_SPEED  = 0.15;
+
+// how far from the hub the blades spawn
+const SHURI_RADIUS      = 1;
+
+// drop interval scales from 25s → 10s over 1→5
+const SHURI_BASE_INTERVAL  = 25000;
+const SHURI_MIN_INTERVAL   = 20000;
+
+// blade-storm lifetime scales 3s → 10s over 1→5
+const SHURI_BASE_DURATION  =  10000;
+const SHURI_MAX_DURATION   = 20000;
+
+// per-blade damage scales 20 → 100 over 1→5
+const SHURI_BASE_DMG       =   20;
+const SHURI_MAX_DMG        =  100;
+
+
+
+// ─── GLOBALS (near top of your script) ───────────────────────
+let subDummies = [];
+const SUB_BASE_INTERVAL  = 25000;  // ms at lvl1
+const SUB_MIN_INTERVAL   = 10000;  // ms at lvl5
+const SUB_BASE_COUNT     =   1;    // dummies at lvl1
+const SUB_MAX_COUNT      =   5;    // at lvl5
+const SUB_BASE_HP        =  500;   // hp at lvl1
+const SUB_MAX_HP         = 2000;   // at lvl5
+const SUB_SPAWN_RADIUS   =  300;   // px around player
 
 
 // STUN GRENADE CONFIG
@@ -67,7 +127,7 @@ const RPG_BASE_DAMAGE   = 50;    // base explosion damage at level 1
     lastDelay   : 0,
     lastWave    : 0,
     maxEnemies  : 5000,
-    minDelay    : 10           // ← NEW  user-tweakable floor (ms)
+    minDelay    : 5           // ← NEW  user-tweakable floor (ms)
   };
 
   // oil stuff
@@ -291,7 +351,7 @@ function updateClones() {
 
 
     const weapons = {
-    buckshot:{ cost:10, damage:15, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
+    buckshot:{ cost:10, damage:5, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
     minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
     sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 }
   };
@@ -312,7 +372,14 @@ function updateClones() {
     6: { name: 'RPG Launcher',    unlockLevel: 3, level: 0, maxLevel: 5, active: false },
     7: { name: 'Century Gun',     unlockLevel: 5, level: 0, maxLevel: 5, active: false },
     8: { name: 'Stun Grenade',    unlockLevel: 8, level: 0, maxLevel: 5, active: false },
-
+   
+   
+   
+    // Sniper-class abilities:
+    9:  { name: 'Pierceing Shot',    unlockLevel: 1, level: 0, maxLevel: 5, active: false },
+    10: { name: 'Subterfuge',      unlockLevel: 3, level: 0, maxLevel: 5, active: false },
+    11: { name: 'Shuricane Trap', unlockLevel: 5, level: 0, maxLevel: 5, active: false },
+    12: { name: 'Spotter Drone',   unlockLevel: 1, level: 0, maxLevel: 5, active: false },
 
 
 
@@ -525,6 +592,35 @@ else if (playerClass === 'assault') {
   });
 }
 
+else if (playerClass === 'sniper') {
+  // lock weapon to sniper
+  currentWeaponKey = 'sniper';
+  currentWeapon    = { ...weapons.sniper };
+
+  // remap the 4 ability slots to sniper’s abilities 9–12
+  document.querySelectorAll('.ability-slot').forEach((slotEl, i) => {
+    const abilityId = SLOT_MAP.sniper[i];
+    slotEl.dataset.slot = abilityId;
+    slotEl.textContent  = abilities[abilityId].name;
+    slotEl.classList.remove('locked');
+    // unlock immediately
+  
+    if (abilities[abilityId].level === 0) abilities[abilityId].level = 1;
+  });
+
+  // hide all weapon‐purchase buttons except sniper
+  upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => {
+    btn.style.display = btn.dataset.weapon === 'sniper' ? 'block' : 'none';
+  });
+
+  magSize = 1;
+  upgrades.magSize.cost = 100
+  ammo = magSize;
+  updateUpgradeButtons();
+}
+
+
+
 
 
 
@@ -551,12 +647,14 @@ else if (playerClass === 'assault') {
   initObjects();
   bullets = []; enemies = []; pickups = [];
   spawnStartTime = Date.now();
+  
 
   // ─── Turn on the game loop ───────────────────────────────────
   gameStarted = true;
   scheduleNextSpawn();
   scheduleNextBoss();
   requestAnimationFrame(loop);
+  
 }
 
 
@@ -832,6 +930,24 @@ function update() {
   const elapsedSec = elapsedMs / 1000;
   updateMode(elapsedSec);
   updateClones();
+  // paintball.js → inside update(), before movement:
+  if (player.speedBuffUntil > Date.now()) {
+    // only trail when actually moving
+    if (keys['w']||keys['a']||keys['s']||keys['d']) {
+      speedTrails.push({
+        x: player.x,
+        y: player.y,
+        life: 30             // frames
+      });
+    }
+  }
+
+  // then decay old trails:
+  speedTrails.forEach((t,i) => {
+    t.life--;
+    if (t.life <= 0) speedTrails.splice(i,1);
+  });
+
 
     // ─── PROCESS STUN GRENADES ─────────────────────────────
   for (let i = stunGrenades.length - 1; i >= 0; i--) {
@@ -915,6 +1031,75 @@ enemies.forEach(e => {
   }
 });
 
+
+// ─── UPDATE SHURICANE TRAPS & FIRE BLADES ─────────────────────────
+for (let i = shuriTraps.length - 1; i >= 0; i--) {
+  const tr = shuriTraps[i];
+  const age = Date.now() - tr.born;
+
+  // expire trap
+  if (age > tr.duration) {
+    shuriTraps.splice(i, 1);
+    continue;
+  }
+
+  // rotate firing angle
+  tr.spinAngle += SHURI_SPIN_SPEED;
+
+  // spawn a shuricane projectile
+  const now = Date.now();
+  if (now - tr.lastShot >= SHURI_FIRE_RATE) {
+    tr.lastShot = now;
+    shuricanes.push({
+      x:      tr.x,
+      y:      tr.y,
+      ang:    tr.spinAngle,
+      spd:    12,
+      size:   8,
+      damage: tr.damage
+    });
+  }
+}
+
+  // ─── UPDATE & COLLIDE SHURICANES ─────────────────────────
+  for (let i = shuricanes.length - 1; i >= 0; i--) {
+    const s = shuricanes[i];
+    s.x += Math.cos(s.ang) * s.spd;
+    s.y += Math.sin(s.ang) * s.spd;
+
+    // hit any enemy?
+    const hit = enemies.findIndex(e => dist(s.x, s.y, e.x, e.y) < e.size/2 + s.size/2);
+    if (hit !== -1) {
+      enemies[hit].health -= s.damage;
+      if (enemies[hit].health <= 0) handleEnemyDeath(hit);
+      shuricanes.splice(i, 1);
+      continue;
+    }
+
+    // out of bounds
+    if (s.x < 0 || s.x > mapSize || s.y < 0 || s.y > mapSize) {
+      shuricanes.splice(i, 1);
+    }
+  }
+
+
+
+  // ─── dummies ──────────
+  enemies.forEach(e => {
+    // choose target: nearest dummy if any, else player
+    let tx = player.x, ty = player.y;
+    if (subDummies.length) {
+      let best = Infinity, sel = null;
+      subDummies.forEach(d => {
+        const d2 = dist(e.x, e.y, d.x, d.y);
+        if (d2 < best) { best = d2; sel = d; }
+      });
+      if (sel) { tx = sel.x; ty = sel.y; }
+    }
+    const ang = Math.atan2(ty - e.y, tx - e.x);
+    e.x += Math.cos(ang) * e.speed;
+    e.y += Math.sin(ang) * e.speed;
+  });
 
   // ─── OIL PUDDLE SLOWDOWN ─────────────────────────────
   // 'oilPuddles' are now oil puddles
@@ -1268,6 +1453,36 @@ for (let i = grenades.length - 1; i >= 0; i--) {
     if (ex.life <= 0) explosions.splice(i, 1);
   }
 
+  for (let i = piercingShots.length - 1; i >= 0; i--) {
+  const b = piercingShots[i];
+  // move
+  b.x += Math.cos(b.ang) * b.spd;
+  b.y += Math.sin(b.ang) * b.spd;
+
+  // despawn off-map
+  if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
+    piercingShots.splice(i, 1);
+    continue;
+  }
+
+  // hit the first enemy in its path
+  for (let j = enemies.length - 1; j >= 0; j--) {
+    const e = enemies[j];
+    if (dist(b.x, b.y, e.x, e.y) < b.size + e.size / 2) {
+      // deal full sniper damage
+      e.health -= currentWeapon.damage;
+      if (e.health <= 0) handleEnemyDeath(j);
+
+      // decrement pierce count, remove when exhausted
+      b.remaining--;
+      if (b.remaining <= 0) {
+        piercingShots.splice(i, 1);
+      }
+      break; // only one enemy per frame
+    }
+  }
+}
+
 
   updateUI();
 
@@ -1344,32 +1559,32 @@ for (let i = grenades.length - 1; i >= 0; i--) {
       ctx.fill();
     });
 
-/* eruptions (with fade & hue shift) */
-eruptions.forEach(e => {
-  ctx.save();
-  // fade out as e.life ticks down
-  ctx.globalAlpha = 0.6 * (e.life / 450);
-  // subtle hue shift per eruption
-  ctx.fillStyle   = `hsl(${30 + Math.random() * 10},100%,50%)`;
+  /* eruptions (with fade & hue shift) */
+  eruptions.forEach(e => {
+    ctx.save();
+    // fade out as e.life ticks down
+    ctx.globalAlpha = 0.6 * (e.life / 450);
+    // subtle hue shift per eruption
+    ctx.fillStyle   = `hsl(${30 + Math.random() * 10},100%,50%)`;
 
-  if (e.vertical) {
-    ctx.fillRect(
-      e.x - viewX - 100,
-      e.y - viewY - 200,
-      200,
-      220
-    );
-  } else {
-    ctx.fillRect(
-      e.x - viewX - 200,
-      e.y - viewY - 100,
-      220,
-      200
-    );
-  }
+    if (e.vertical) {
+      ctx.fillRect(
+        e.x - viewX - 100,
+        e.y - viewY - 200,
+        200,
+        220
+      );
+    } else {
+      ctx.fillRect(
+        e.x - viewX - 200,
+        e.y - viewY - 100,
+        220,
+        200
+      );
+    }
 
-  ctx.restore();
-});
+    ctx.restore();
+  });
 
   // draw oil puddles with fade
   oilPuddles.forEach(o => {
@@ -1406,6 +1621,23 @@ eruptions.forEach(e => {
       );
     });
 
+    // ─── SPEED-BUFF TRAIL ─────────────────────────────
+    speedTrails.forEach(t => {
+      const alpha = t.life / 30;
+      const sz    = player.size * 0.4;  // adjust to taste
+      ctx.save();
+        ctx.globalAlpha = alpha * 0.6;   // softer
+        ctx.fillStyle   = '#0FF';
+        ctx.beginPath();
+        ctx.arc(
+          t.x - viewX,
+          t.y - viewY,
+          sz,
+          0, Math.PI*2
+        );
+        ctx.fill();
+      ctx.restore();
+    });
 
     // ─── PLAYER ─────────────────────────────────────────
     const px = player.x - viewX,
@@ -1426,7 +1658,45 @@ eruptions.forEach(e => {
 
 
 
+  // ─── DECAY DUMMIES ON ENEMY CONTACT ───────────────────────
+  for (let i = subDummies.length - 1; i >= 0; i--) {
+    const d = subDummies[i];
+    // check every enemy for collision
+    enemies.forEach(e => {
+      const hitDist = e.size/2 + player.size/2; // same as player
+      if (dist(e.x, e.y, d.x, d.y) < hitDist) {
+        d.hp--;    // subtract 1 HP per frame of contact
+      }
+    });
+    // remove if dead
+    if (d.hp <= 0) {
+      subDummies.splice(i, 1);
+    }
+  }
 
+    subDummies.forEach(d => {
+      const dx = d.x - viewX, dy = d.y - viewY;
+      // simple pulse animation
+      const pulse = 1 + 0.1 * Math.sin(Date.now() / 200);
+      ctx.save();
+        ctx.translate(dx, dy);
+        ctx.scale(pulse, pulse);
+
+        // decoy body
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+        ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size);
+
+        // HP bar above
+        const pct = d.hp / d.maxHp;
+        ctx.fillStyle = '#00ffff';
+        ctx.fillRect(-player.size/2, -player.size - 6, player.size * pct, 4);
+
+        // black outline
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth   = 2;
+        ctx.strokeRect(-player.size/2, -player.size/2, player.size, player.size);
+      ctx.restore();
+    });
 
   // draw each clone, 35% transparent:
   ctx.globalAlpha = 0.65;
@@ -1527,6 +1797,52 @@ eruptions.forEach(e => {
     }
   }
 
+// ─── DRAW SPOTTER DRONE ─────────────────────────────
+if (spotterDrone) {
+  // bob up/down
+  const bob = Math.sin(Date.now()/DRONE_BOB_FREQ) * DRONE_BOB_AMP;
+  const dx  = spotterDrone.x - viewX;
+  const dy  = spotterDrone.y - viewY + bob;
+
+  // elegant diamond shape
+  ctx.save();
+    ctx.translate(dx, dy);
+    ctx.rotate(Math.PI/4);
+    ctx.fillStyle = '#88CCFF';
+    ctx.beginPath();
+    ctx.rect(-10, -10, 20, 20);
+    ctx.fill();
+    ctx.strokeStyle = '#FFF';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  ctx.restore();
+
+
+
+  // heal flash
+  if (player.healFlashUntil && Date.now() < player.healFlashUntil) {
+    const a = 1 - (player.healFlashUntil - Date.now())/500;
+    ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle   = 'rgba(0,255,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(player.x-viewX, player.y-viewY, player.size+10, 0, Math.PI*2);
+      ctx.fill();
+    ctx.restore();
+  }
+
+  // force-field outline
+  if (forcefieldRadius > 0) {
+    ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth   = 3;
+      ctx.beginPath();
+      ctx.arc(player.x-viewX, player.y-viewY, forcefieldRadius, 0, Math.PI*2);
+      ctx.stroke();
+    ctx.restore();
+  }
+}
+
     // ─── ROCKET FLAME PARTICLES ─────────────────────────
     rocketParticles.forEach((p, i) => {
       // advance life
@@ -1550,72 +1866,112 @@ eruptions.forEach(e => {
       ctx.globalAlpha = 1;
     });
 
-    // ─── BOSS BULLETS & ROCKETS ─────────────────────────
-    bossBullets.forEach(b => {
-      const bx = b.x - viewX,
-            by = b.y - viewY;
+      // ─── BOSS BULLETS & ROCKETS ─────────────────────────
+      bossBullets.forEach(b => {
+        const bx = b.x - viewX,
+              by = b.y - viewY;
 
-      if (b.homing) {
-        ctx.save();
-        ctx.translate(bx, by);
-        ctx.rotate(b.ang);
+        if (b.homing) {
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.rotate(b.ang);
 
-        // body rectangle (now twice as long)
-        const bodyW = b.size * 2,
-              bodyH = b.size / 2;
-        ctx.fillStyle = b.color;
-        ctx.fillRect(-bodyW/2, -bodyH/2, bodyW, bodyH);
+          // body rectangle (now twice as long)
+          const bodyW = b.size * 2,
+                bodyH = b.size / 2;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(-bodyW/2, -bodyH/2, bodyW, bodyH);
 
-        // nose triangle (scaled to match)
-        ctx.beginPath();
-        ctx.moveTo(bodyW/2, 0);
-        ctx.lineTo(bodyW/2 + bodyW/2, -bodyH/2);
-        ctx.lineTo(bodyW/2 + bodyW/2,  bodyH/2);
-        ctx.closePath();
-        ctx.fill();
+          // nose triangle (scaled to match)
+          ctx.beginPath();
+          ctx.moveTo(bodyW/2, 0);
+          ctx.lineTo(bodyW/2 + bodyW/2, -bodyH/2);
+          ctx.lineTo(bodyW/2 + bodyW/2,  bodyH/2);
+          ctx.closePath();
+          ctx.fill();
 
-        ctx.restore();
-      } else {
-        // radial bullet as circle
-        ctx.fillStyle = b.color;
-        ctx.beginPath();
-        ctx.arc(bx, by, b.size, 0, Math.PI*2);
-        ctx.fill();
-      }
-    });
+          ctx.restore();
+        } else {
+          // radial bullet as circle
+          ctx.fillStyle = b.color;
+          ctx.beginPath();
+          ctx.arc(bx, by, b.size, 0, Math.PI*2);
+          ctx.fill();
+        }
+      });
 
-// ─── DRAW CENTURY TURRETS ────────────────────────────────
-const cg = abilities[7];
-if (cg && cg.turrets) {
-  cg.turrets.forEach(t => {
-    const dx = t.x - viewX, dy = t.y - viewY;
+ // ─── DRAW SHURICANE TRAPS (hub ball) ─────────────────────────
+shuriTraps.forEach(tr => {
+  const age = Date.now() - tr.born;
+  const alpha = 1 - age / tr.duration;
+  ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = '#113355';
+    ctx.beginPath();
+    ctx.arc(tr.x - viewX, tr.y - viewY, 14, 0, Math.PI*2);
+    ctx.fill();
+  ctx.restore();
+});
+
+  // ─── DRAW SHURICANE PROJECTILES ─────────────────────────
+  shuricanes.forEach(s => {
     ctx.save();
-      ctx.translate(dx, dy);
-      ctx.rotate(t.angle);
-
-      // Base platform (circle)
-      ctx.fillStyle = '#333';
+      ctx.translate(s.x - viewX, s.y - viewY);
+      ctx.rotate(s.ang);
+      // style: a little serrated wheel
+      ctx.fillStyle = '#0af';
       ctx.beginPath();
-      ctx.arc(0, 0, 12, 0, Math.PI*2);
+      ctx.arc(0, 0, s.size/2, 0, Math.PI*2);
       ctx.fill();
 
-      // Body
-      ctx.fillStyle = '#8A2BE2';
-      ctx.fillRect(-10, -6, 20, 12);
-
-      // Barrel
-      ctx.fillStyle = '#DDA0DD';
-      ctx.fillRect(0, -4, 28, 8);
-
-      // Muzzle flash ring (small)
-      ctx.strokeStyle = '#FFF';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 14, 0, Math.PI*2);
-      ctx.stroke();
+      // eight tiny spikes
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth   = 2;
+      for (let k = 0; k < 8; k++) {
+        const a = k * (Math.PI*2/8);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a)*(s.size/2+2), Math.sin(a)*(s.size/2+2));
+        ctx.lineTo(Math.cos(a)*(s.size+2),   Math.sin(a)*(s.size+2));
+        ctx.stroke();
+      }
     ctx.restore();
   });
-}
+;
+
+
+
+  // ─── DRAW CENTURY TURRETS ────────────────────────────────
+  const cg = abilities[7];
+  if (cg && cg.turrets) {
+    cg.turrets.forEach(t => {
+      const dx = t.x - viewX, dy = t.y - viewY;
+      ctx.save();
+        ctx.translate(dx, dy);
+        ctx.rotate(t.angle);
+
+        // Base platform (circle)
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI*2);
+        ctx.fill();
+
+        // Body
+        ctx.fillStyle = '#8A2BE2';
+        ctx.fillRect(-10, -6, 20, 12);
+
+        // Barrel
+        ctx.fillStyle = '#DDA0DD';
+        ctx.fillRect(0, -4, 28, 8);
+
+        // Muzzle flash ring (small)
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI*2);
+        ctx.stroke();
+      ctx.restore();
+    });
+  }
 
 
 
@@ -1668,6 +2024,32 @@ if (cg && cg.turrets) {
       ctx.stroke();
       ctx.restore();
     });
+
+  // render each piercing shot with a glowing tracer
+  piercingShots.forEach(b => {
+    const px = b.x - viewX, py = b.y - viewY;
+
+    // tail
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+    ctx.lineWidth   = 4;
+    ctx.beginPath();
+    ctx.moveTo(
+      px - Math.cos(b.ang) * 12,
+      py - Math.sin(b.ang) * 12
+    );
+    ctx.lineTo(px, py);
+    ctx.stroke();
+    ctx.restore();
+
+    // head
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(b.ang);
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(-b.size/2, -b.size/4, b.size, b.size/2);
+    ctx.restore();
+  });
 
 
 
@@ -2016,6 +2398,224 @@ function updateAbilities() {
       sg.lastDrop = now;
     }
   }
+
+
+
+  const pb = abilities[9];
+if (pb && pb.active && pb.level > 0) {
+  const now = Date.now();
+  if (!pb.lastFire) pb.lastFire = 0;
+
+  // interval: 10s → 6s at lvl5
+  const interval = Math.max(
+    1000,
+    PIERCE_BASE_INTERVAL - (pb.level - 1) * PIERCE_INTERVAL_DECREMENT
+  );
+
+  if (now - pb.lastFire >= interval) {
+    pb.lastFire = now;
+
+    // spawn a new piercing bullet at player pos+angle
+    piercingShots.push({
+      x: player.x,
+      y: player.y,
+      ang: player.angle,
+      spd: 16,
+      size: 8,
+      remaining: Math.round(
+        PIERCE_BASE_COUNT +
+        (pb.level - 1) * (PIERCE_MAX_COUNT - PIERCE_BASE_COUNT) / 4
+      )
+    });
+  }
+}
+
+// ─── dummys ────────────────────────────
+const sf = abilities[10];
+if (sf && sf.active && sf.level > 0) {
+  const now = Date.now();
+  if (!sf.lastSpawn) sf.lastSpawn = 0;
+
+  // interval scales from 25s → 10s over 5 levels
+  const interval = SUB_BASE_INTERVAL
+                 - (sf.level - 1) * (SUB_BASE_INTERVAL - SUB_MIN_INTERVAL) / 4;
+
+  if (now - sf.lastSpawn >= interval) {
+    sf.lastSpawn = now;
+
+    // compute count & hp by level
+    const count = Math.round(
+      SUB_BASE_COUNT
+      + (sf.level - 1) * (SUB_MAX_COUNT - SUB_BASE_COUNT) / 4
+    );
+    const hp = Math.round(
+      SUB_BASE_HP
+      + (sf.level - 1) * (SUB_MAX_HP - SUB_BASE_HP) / 4
+    );
+
+    // spawn fresh dummies (clearing any old ones)
+    subDummies = [];
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * SUB_SPAWN_RADIUS;
+      subDummies.push({
+        x: player.x + Math.cos(a) * r,
+        y: player.y + Math.sin(a) * r,
+        hp, maxHp: hp
+      });
+    }
+  }
+} else {
+  // if you toggle it off, clear all
+  subDummies.length = 0;
+}
+
+
+
+  // ─── SHURICANE TRAP ─────────────────────────────
+  const st = abilities[11];
+  if (st && st.active && st.level > 0) {
+    const now = Date.now();
+    if (!st.lastDrop) st.lastDrop = 0;
+
+    // compute drop‐interval by level
+    const t = (st.level - 1) / (st.maxLevel - 1);
+    const interval = SHURI_BASE_INTERVAL - t * (SHURI_BASE_INTERVAL - SHURI_MIN_INTERVAL);
+
+    if (now - st.lastDrop >= interval) {
+      st.lastDrop = now;
+
+      // compute duration & damage by level
+      const duration = SHURI_BASE_DURATION + t * (SHURI_MAX_DURATION - SHURI_BASE_DURATION);
+      const damage   = SHURI_BASE_DMG      + t * (SHURI_MAX_DMG      - SHURI_BASE_DMG);
+
+      // spawn one new trap hub
+      shuriTraps.push({
+        x:        player.x,
+        y:        player.y,
+        born:     now,
+        duration,            // ms
+        damage,              // per blade
+        spinAngle: 0,
+        lastShot: 0
+      });
+    }
+  }
+// ─── SPOTTER DRONE (slot 12) ────────────────────────
+const sd = abilities[12];
+if (sd && sd.active && sd.level > 0) {
+  const now = Date.now();
+
+  // spawn once
+  if (!spotterDrone) {
+    spotterDrone = {
+      x: player.x + DRONE_RADIUS,
+      y: player.y,
+      targetTime:       0,
+      targetX:          player.x,
+      targetY:          player.y,
+      lastEffect:       0,
+      forcefieldOn:     false,
+      forcefieldExpires: 0      // ← initialize expiry
+    };
+  }
+
+  // pick a new wander target
+  if (now >= spotterDrone.targetTime) {
+    spotterDrone.targetTime = now + DRONE_MOVE_INTERVAL;
+    const a = Math.random() * Math.PI * 2;
+    spotterDrone.targetX = player.x + Math.cos(a) * DRONE_RADIUS;
+    spotterDrone.targetY = player.y + Math.sin(a) * DRONE_RADIUS;
+  }
+
+  // move toward that target
+  let dx = spotterDrone.targetX - spotterDrone.x;
+  let dy = spotterDrone.targetY - spotterDrone.y;
+  const d  = Math.hypot(dx, dy) || 1;
+  spotterDrone.x += dx / d * DRONE_MOVE_SPEED;
+  spotterDrone.y += dy / d * DRONE_MOVE_SPEED;
+
+  // every effect interval, pick a random effect
+  if (now - spotterDrone.lastEffect >= DRONE_EFFECT_INTERVAL) {
+    spotterDrone.lastEffect = now;
+    const effects = ['speed','heal','forcefield','grenade'];
+    const pick    = effects[Math.floor(Math.random() * effects.length)];
+    const lvl     = sd.level;
+
+    switch (pick) {
+      case 'speed':
+        player.speedBuffUntil = now + 10000;
+        player.speed *= 1 + 0.1 * lvl;
+        break;
+
+      case 'heal':
+        player.health = Math.min(player.maxHealth, player.health + 10 * lvl);
+        player.healFlashUntil = now + 500;
+        break;
+
+      case 'forcefield':
+        // set duration based on level
+        spotterDrone.forcefieldOn      = true;
+        spotterDrone.forcefieldExpires = now
+          + DRONE_FORCEFIELD_BASE
+          + (lvl - 1) * DRONE_FORCEFIELD_PER_LVL;
+        forcefieldRadius = 100 + lvl * 10;
+        break;
+
+      case 'grenade':
+        const count = lvl * 15;
+        for (let j = 0; j < count; j++) {
+          const ang = (Math.PI * 2 / count) * j;
+          bullets.push({
+            x:        spotterDrone.x,
+            y:        spotterDrone.y,
+            ang,
+            spd:      8,
+            size:     6,
+            damage:   currentWeapon.damage,
+            isGrenadeBullet: true,
+            birthTime: now,
+            ttl:      GRENADE_BULLET_LIFESPAN * 1000
+          });
+        }
+        break;
+    }
+  }
+
+  // ─── APPLY TIMED FORCE-FIELD ────────────────────
+  if (spotterDrone.forcefieldOn) {
+    if (now < spotterDrone.forcefieldExpires) {
+      enemies.forEach(e => {
+        const dx2   = e.x - player.x,
+              dy2   = e.y - player.y,
+              dist2 = Math.hypot(dx2, dy2) || 1;
+        if (dist2 < forcefieldRadius) {
+          // push to the edge
+          e.x = player.x + (dx2 / dist2) * forcefieldRadius;
+          e.y = player.y + (dy2 / dist2) * forcefieldRadius;
+        }
+      });
+    } else {
+      // duration expired → turn it off
+      spotterDrone.forcefieldOn = false;
+      forcefieldRadius          = 0;
+    }
+  }
+
+} else {
+  // clean up when toggled off
+  spotterDrone      = null;
+  forcefieldRadius  = 0;
+}
+
+
+
+
+
+
+
+
+
   // after all your ability logic, add: returns buttons to untoggled state
   document.querySelectorAll('.ability-slot').forEach(slotEl => {
     const id = +slotEl.dataset.slot;
@@ -2206,6 +2806,7 @@ function attemptUpgrade(abilityId, arrowEl) {
 
   /* ─── NEW SPAWN-SCHEDULER ───────────────────────── */
   function scheduleNextSpawn() {
+    
     const now        = Date.now();
     const elapsedMs  = now - spawnStartTime;
     const elapsedSec = elapsedMs / 1000;
