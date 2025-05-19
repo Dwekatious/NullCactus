@@ -6,8 +6,29 @@ const SLOT_MAP = {
   default: [1, 2, 3, 4],   // keys 1–4 → abilities[1…4]
   assault: [5, 6, 7, 8],   // keys 1–4 → abilities[5…8]
   sniper:   [9, 10, 11, 12],   // ← added
+  medic:   [13, 14, 15, 16],
   // add more classes here if needed
 };
+
+// ─── SCOURGE ARMY GLOBALS ─────────────────────────
+let scourgeArmy = [];
+const SCOURGE_BASE_COUNT  = 5;
+const SCOURGE_MAX_COUNT   = 10;
+const SCOURGE_MELEE_DAMAGE = 1; // dial this down if it still feels too strong
+
+// top of paintball.js
+let combatTexts = [];
+
+function spawnCombatText(x, y, text, color) {
+  combatTexts.push({ x, y, text, color, born: Date.now() });
+}
+
+// ─── LIFE DRAIN GLOBALS ─────────────────────────
+let lifeBeams = [];
+const DRAIN_BASE_RADIUS    = 500;  // how far it searches
+const DRAIN_BASE_DAMAGE    = 20;   // base damage & healing
+const DRAIN_BASE_FIRE_RATE = 250;  // ms between shots
+
 // SPOTTER DRONE GLOBALS
 let spotterDrone = null;
 const DRONE_RADIUS         = 150;    // how far from player it can wander
@@ -22,6 +43,16 @@ const DRONE_FORCEFIELD_PER_LVL = 500; // +0.5 s per extra level
 // force-field settings
 let forcefieldRadius = 0;
 let speedTrails = [];
+
+
+// ─── MIND CONTROL GLOBALS ─────────────────────────
+let mindControlShots   = [];
+let mindControlled     = []; 
+const MCTRL_COOLDOWN   = 15000;   // 15 s between shots (unchanged per level)
+const MCTRL_BASE_DURATION = 5000; // 5 s at lvl 1
+const MCTRL_DURATION_PER_LVL = 2000; // +2 s per extra level
+const MCTRL_SHOT_SPEED = 12;      // how fast the projectile flies
+const MCTRL_SHOT_SIZE  = 10;
 
 
 // ─── PIERCING BULLET GLOBALS ─────────────────────────
@@ -98,6 +129,17 @@ const RPG_BASE_SIZE     = 12;    // half-width of the rocket body at level 1
 const RPG_BASE_RADIUS   = 100;   // explosion AOE at level 1
 const RPG_SCALE_PER_LVL = 0.35;  // +15% size & radius per extra level
 const RPG_BASE_DAMAGE   = 50;    // base explosion damage at level 1
+
+// ─── POISON BOMB GLOBALS ─────────────────────────
+let poisonPuddles = [];
+const POISON_CD_MS         = 30_000;  // fixed 20 s cooldown
+const POISON_BASE_DURATION = 15_000;   // lvl 1 → 5 s
+const POISON_MAX_DURATION  = 30_000;  // lvl 5 → 20 s
+const POISON_BASE_RADIUS   = 200;     // lvl 1 → 100 px
+const POISON_MAX_RADIUS    = 500;     // lvl 5 → 350 px
+const POISON_BASE_DPS      =   20;     // you can tweak these
+const POISON_MAX_DPS       =  100;
+const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
 
 
 
@@ -353,7 +395,9 @@ function updateClones() {
     const weapons = {
     buckshot:{ cost:10, damage:5, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
     minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
-    sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 }
+    sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 },
+    drainLife:  { cost:25, damage:DRAIN_BASE_DAMAGE, bullets:1, spread:0, reload:0, fireRate:DRAIN_BASE_FIRE_RATE }
+
   };
 
   // 1. Define abilities
@@ -382,6 +426,13 @@ function updateClones() {
     12: { name: 'Spotter Drone',   unlockLevel: 1, level: 0, maxLevel: 5, active: false },
 
 
+
+    // ─── Medic‐class abilities ────────────────────
+    13: { name: 'Poison Bomb',  unlockLevel: 1, level: 0, maxLevel: 5, active: false },
+    14: { name: 'Mind Control', unlockLevel: 3, level: 0, maxLevel: 5, active: false ,lastFire:    0},
+    15: { name:'Drain Soul',    unlockLevel:5,  level: 0, maxLevel: 5, active: false, lastSoul:   0     // timer for its 500 ms pulse
+},
+    16: { name: 'Scourge Army', unlockLevel: 10, level: 0, maxLevel: 5, active: false },
 
   };
 
@@ -621,6 +672,34 @@ else if (playerClass === 'sniper') {
 
 
 
+else if (playerClass === 'medic') {
+  // lock weapon to Drain Life
+  currentWeaponKey = 'drainLife';
+  currentWeapon    = { ...weapons.drainLife };
+
+  // hide all weapon‐purchase buttons except our new one
+  upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => {
+    btn.style.display = btn.dataset.weapon === 'drainLife' ? 'block' : 'none';
+  });
+
+  // you can also remap abilities slots here if your medic has its own set…
+  magSize = Infinity;  // unlimited “ammo”
+  ammo    = magSize;
+  updateUpgradeButtons();
+
+    // remap ability-slots to Medic’s 13–16
+  document.querySelectorAll('.ability-slot').forEach((slotEl,i) => {
+    const aid = SLOT_MAP.medic[i];
+    slotEl.dataset.slot = aid;
+    slotEl.textContent  = abilities[aid].name;
+    slotEl.classList.remove('locked');
+    if (abilities[aid].level === 0) abilities[aid].level = 1;
+  });
+
+}
+
+
+
 
 
 
@@ -758,6 +837,51 @@ function difficultyT(elapsedMs) {
   return 2 + Math.pow((m - 15) / 5, 2) * 2;
 }
 
+function bossAttack(ally) {
+  const now = Date.now();
+  if (now - ally.lastShot < ally.fireRate) return;
+  ally.lastShot = now;
+
+  // ── RADIAL ──
+  if (ally.pattern === 'radial') {
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 / 8) * i;
+      bullets.push({
+        x: ally.x, y: ally.y, ang,
+        spd: 8, size: 8,
+        damage: baseBulletDamage
+      });
+    }
+
+  // ── HOMING ── (point at nearest enemy)
+  } else if (ally.pattern === 'homing') {
+    let target = null, best = Infinity;
+    for (const e of enemies) {
+      const d = dist(ally.x, ally.y, e.x, e.y);
+      if (d < best) { best = d; target = e; }
+    }
+    if (target) {
+      const ang = Math.atan2(target.y - ally.y, target.x - ally.x);
+      bullets.push({
+        x: ally.x, y: ally.y, ang,
+        spd: 8, size: 8,
+        damage: baseBulletDamage
+      });
+    }
+
+  // ── SPIRAL ── (one bullet, rotating)
+  } else if (ally.pattern === 'spiral') {
+    ally.spiralAngle = (ally.spiralAngle || 0) + 0.2;
+    bullets.push({
+      x: ally.x, y: ally.y,
+      ang: ally.spiralAngle,
+      spd: 8, size: 8,
+      damage: baseBulletDamage
+    });
+  }
+}
+
+
 /* ─── NEW SPAWN-SCHEDULER ─────────────────────────── */
 function update() {
   if (!player) return;
@@ -805,6 +929,53 @@ function update() {
 
 function shoot() {
   const now = Date.now();
+  if (playerClass === 'medic') {
+    // enforce fire‐rate
+    if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
+    player.lastShot = now;
+
+    // ─── use player.level as target count ───────────────
+    const maxTargets = 1+ player.level/2;    // 1 target at lvl1, 2 at lvl2, etc.
+
+    // find in‐range enemies, sort by distance, take up to maxTargets
+    const targets = enemies
+      .filter(e => dist(player.x, player.y, e.x, e.y) < DRAIN_BASE_RADIUS)
+      .sort((a, b) =>
+        dist(player.x, player.y, a.x, a.y)
+      - dist(player.x, player.y, b.x, b.y)
+      )
+      .slice(0, maxTargets);
+
+    if (targets.length === 0) return;
+
+    const dmg = currentWeapon.damage * damageMultiplier;
+
+    // hit each one
+    for (const target of targets) {
+      target.health -= dmg;
+      spawnCombatText(target.x, target.y, `-${dmg}`, 'red');
+      if (target.health <= 0) {
+        const idx = enemies.indexOf(target);
+        if (idx !== -1) handleEnemyDeath(idx);
+      }
+
+      // heal for same amount
+      player.health = Math.min(player.maxHealth, player.health + dmg);
+      spawnCombatText(player.x, player.y, `+${dmg}`, 'lime');
+
+      // beam effect
+      lifeBeams.push({
+        x1: player.x, y1: player.y,
+        x2: target.x, y2: target.y,
+        born: now
+      });
+    }
+
+    return; // skip normal bullet logic
+  }
+
+
+  
   if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
   player.lastShot = now;
 
@@ -930,6 +1101,66 @@ function update() {
   const elapsedSec = elapsedMs / 1000;
   updateMode(elapsedSec);
   updateClones();
+
+// ─── UPDATE MIND-CONTROLLED ENEMIES ─────────────────────────
+for (let i = mindControlled.length - 1; i >= 0; i--) {
+  const ally = mindControlled[i];
+
+  // 1) Died? drop and forget
+  if (ally.health <= 0) {
+    mindControlled.splice(i, 1);
+    continue;
+  }
+
+  // 2) Control expired? revert to hostile
+  if (Date.now() > ally.controlledUntil) {
+    enemies.push({
+      x:           ally.x,
+      y:           ally.y,
+      speed:       ally.speed,
+      size:        ally.size,
+      health:      ally.health,
+      maxHealth:   ally.maxHealth,
+      color:       ally.color,
+      isBoss:      ally.isBoss,
+      // restore the boss’ AI data:
+      pattern:     ally.pattern,
+      fireRate:    ally.fireRate,
+      spiralAngle: ally.spiralAngle,
+      lastShot:    ally.lastShot
+    });
+    mindControlled.splice(i, 1);
+    continue;
+  }
+
+  // 3) Find nearest hostile enemy
+  let bestD = Infinity, target = null;
+  for (const e of enemies) {
+    const d = dist(ally.x, ally.y, e.x, e.y);
+    if (d < bestD) { bestD = d; target = e; }
+  }
+
+  if (!target) continue;
+
+  // 4) Move toward them just like an enemy
+  const ang = Math.atan2(target.y - ally.y, target.x - ally.x);
+  ally.x += Math.cos(ang) * ally.speed;
+  ally.y += Math.sin(ang) * ally.speed;
+
+  // 5) Melee‐on‐contact (no insta-kill!)
+  const hitDist = ally.size/2 + target.size/2;
+  if (bestD < hitDist) {
+    target.health -= ally.meleeDamage;    
+    if (target.health <= 0) handleEnemyDeath(enemies.indexOf(target));
+  }
+
+  // 6) If it’s a boss, let them run their boss‐AI, too
+  if (ally.isBoss) bossAttack(ally);
+}
+
+
+
+  
   // paintball.js → inside update(), before movement:
   if (player.speedBuffUntil > Date.now()) {
     // only trail when actually moving
@@ -1060,6 +1291,83 @@ for (let i = shuriTraps.length - 1; i >= 0; i--) {
     });
   }
 }
+const mc = abilities[14];
+// UPDATE MIND-CONTROL SHOTS
+for (let i = mindControlShots.length - 1; i >= 0; i--) {
+  const s = mindControlShots[i];
+  s.x += Math.cos(s.ang) * s.spd;
+  s.y += Math.sin(s.ang) * s.spd;
+
+  // out of bounds?
+  if (s.x < 0 || s.x > mapSize || s.y < 0 || s.y > mapSize) {
+    mindControlShots.splice(i, 1);
+    continue;
+  }
+
+  // hit first enemy
+  const hitIdx = enemies.findIndex(e =>
+    dist(s.x, s.y, e.x, e.y) < e.size / 2 + s.size / 2
+  );
+  if (hitIdx !== -1) {
+    // remove it from the battlefield
+    const e = enemies.splice(hitIdx, 1)[0];
+
+    // calculate how long we control it
+    const dur = MCTRL_BASE_DURATION + (mc.level - 1) * MCTRL_DURATION_PER_LVL;
+
+    // push into mindControlled, preserving everything you need
+    mindControlled.push({
+      x:                e.x,
+      y:                e.y,
+      speed:            e.speed,
+      size:             e.size,
+      health:           e.health,
+      maxHealth:        e.maxHealth,
+      isBoss:           !!e.isBoss,
+      pattern:          e.pattern,      // ← keep their attack pattern
+      fireRate:         e.fireRate,     // ← keep their fireRate
+      spiralAngle:      e.spiralAngle || 0,
+      lastShot:         e.lastShot || 0,
+      meleeDamage:      1,                // or whatever your normal damage is
+      originalColor:    e.color,            // ← stash the real colour
+      controlledUntil:  Date.now() + dur
+    });
+
+    // consume the mind-control shot
+    mindControlShots.splice(i, 1);
+  }
+}
+
+
+// ─── UPDATE SCOURGE ARMY ─────────────────────────
+for (let i = scourgeArmy.length - 1; i >= 0; i--) {
+  const ally = scourgeArmy[i];
+  if (ally.health <= 0) {
+    scourgeArmy.splice(i, 1);
+    continue;
+  }
+  // target nearest hostile
+  let bestD = Infinity, target = null;
+  for (const e of enemies) {
+    const d = dist(ally.x, ally.y, e.x, e.y);
+    if (d < bestD) { bestD = d; target = e; }
+  }
+  if (!target) continue;
+  // move & melee
+  const ang = Math.atan2(target.y - ally.y, target.x - ally.x);
+  ally.x += Math.cos(ang) * ally.speed;
+  ally.y += Math.sin(ang) * ally.speed;
+  if (bestD < ally.size/2 + target.size/2) {
+    target.health -= ally.meleeDamage;
+    if (target.health <= 0) handleEnemyDeath(enemies.indexOf(target));
+  }
+  // bosses still use their AI
+  if (ally.isBoss) bossAttack(ally);
+}
+
+
+
+
 
   // ─── UPDATE & COLLIDE SHURICANES ─────────────────────────
   for (let i = shuricanes.length - 1; i >= 0; i--) {
@@ -1082,6 +1390,35 @@ for (let i = shuriTraps.length - 1; i >= 0; i--) {
     }
   }
 
+
+    // ─── PROCESS POISON PUDDLES ────────────────────
+  for (let i = poisonPuddles.length - 1; i >= 0; i--) {
+    const p   = poisonPuddles[i];
+    const age = now - p.born;
+    if (age >= p.duration) {
+      poisonPuddles.splice(i, 1);
+      continue;
+    }
+
+    // mark every enemy inside the radius as slowed
+    enemies.forEach(e => {
+      if (dist(e.x, e.y, p.x, p.y) <= p.radius) {
+        e._slowed = true;
+      }
+    });
+
+    // deal DPS once per second
+    if (now - p.lastTick >= 1000) {
+      p.lastTick += Math.floor((now - p.lastTick) / 1000) * 1000;
+      enemies.forEach((e, j) => {
+        if (dist(e.x, e.y, p.x, p.y) <= p.radius) {
+          e.health -= p.dps;
+          spawnCombatText(e.x, e.y, `-${Math.round(p.dps)}`, 'green');
+          if (e.health <= 0) handleEnemyDeath(j);
+        }
+      });
+    }
+  }
 
 
   // ─── dummies ──────────
@@ -1177,11 +1514,14 @@ for (let i = shuriTraps.length - 1; i >= 0; i--) {
 
   // ─── ENEMY MOVEMENT (skip stunned) ───────────────────
   enemies.forEach(e => {
-    if (e._skip) return;      // freeze stunned enemies
+    if (e._skip) return;
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
-    e.x += Math.cos(ang) * e.speed;
-    e.y += Math.sin(ang) * e.speed;
+    const slowFactor = e._slowed ? POISON_SLOW_FACTOR : 1;
+    e.x += Math.cos(ang) * e.speed * slowFactor;
+    e.y += Math.sin(ang) * e.speed * slowFactor;
+    delete e._slowed;   // reset for next frame
   });
+
 // ─── BULLET MOVEMENT, PERFECT HOMING & COLLISIONS ─────────────────
 for (let i = bullets.length - 1; i >= 0; i--) {
   const b = bullets[i];
@@ -1194,24 +1534,22 @@ for (let i = bullets.length - 1; i >= 0; i--) {
 
   // 2) Perfect homing adjustment
   if (b.homing) {
-    // if we don’t have a live target or it’s out of range, find the nearest valid one
     if (
       !b.target ||
       !enemies.includes(b.target) ||
       dist(b.x, b.y, b.target.x, b.target.y) > b.homingRadius
     ) {
-      let nearest    = null;
-      let nearestD   = Infinity;
+      let nearest = null;
+      let nearestD = Infinity;
       for (const e of enemies) {
         const d = dist(b.x, b.y, e.x, e.y);
         if (d < nearestD && d <= b.homingRadius) {
           nearestD = d;
-          nearest  = e;
+          nearest = e;
         }
       }
       b.target = nearest;
     }
-    // if we now have a valid target, snap our angle straight at it
     if (b.target) {
       b.ang = Math.atan2(b.target.y - b.y, b.target.x - b.x);
     }
@@ -1221,23 +1559,45 @@ for (let i = bullets.length - 1; i >= 0; i--) {
   b.x += Math.cos(b.ang) * b.spd;
   b.y += Math.sin(b.ang) * b.spd;
 
-  // 4) Despawn off‐map
+  // 4) Despawn off-map
   if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
     bullets.splice(i, 1);
     continue;
   }
 
-  // 5) Hit‐test
+  // Compute radii only once
+  const rB = b.size / 2;
+
+  // 5) Try to hit a hostile enemy
+  let hitSomething = false;
   for (let j = enemies.length - 1; j >= 0; j--) {
     const e = enemies[j];
-    if (dist(b.x, b.y, e.x, e.y) < b.size + e.size / 2) {
+    const rE = e.size / 2;
+    if (dist(b.x, b.y, e.x, e.y) < rB + rE) {
       e.health -= b.damage;
-      bullets.splice(i, 1);
       if (e.health <= 0) handleEnemyDeath(j);
+      hitSomething = true;
+      break;
+    }
+  }
+  if (hitSomething) {
+    bullets.splice(i, 1);
+    continue;
+  }
+
+  // 6) Didn’t hit an enemy? try to hit a scourge ally
+  for (let j = scourgeArmy.length - 1; j >= 0; j--) {
+    const ally = scourgeArmy[j];
+    const rA = ally.size / 2;
+    if (dist(b.x, b.y, ally.x, ally.y) < rB + rA) {
+      ally.health -= b.damage;
+      bullets.splice(i, 1);
+      if (ally.health <= 0) scourgeArmy.splice(j, 1);
       break;
     }
   }
 }
+
 
 
 
@@ -1339,6 +1699,32 @@ for (let i = bullets.length - 1; i >= 0; i--) {
       pickups.splice(i,1);
     }
   });
+// ─── hostiles damage allied units (mind-control + scourge) ───
+enemies.forEach(e => {
+
+  /* 1) mind-controlled allies */
+  for (let i = mindControlled.length - 1; i >= 0; i--) {
+    const ally = mindControlled[i];
+    if (dist(ally.x, ally.y, e.x, e.y) < ally.size/2 + e.size/2) {
+      ally.health--;                                    // ← 1 HP per frame
+      spawnCombatText(ally.x, ally.y, '-1', 'red');
+      if (ally.health <= 0) mindControlled.splice(i, 1);
+    }
+  }
+
+  /* 2) scourge allies */
+  for (let j = scourgeArmy.length - 1; j >= 0; j--) {
+    const ally = scourgeArmy[j];
+    if (dist(ally.x, ally.y, e.x, e.y) < ally.size/2 + e.size/2) {
+      ally.health--;                                    // same tick damage
+      spawnCombatText(ally.x, ally.y, '-1', 'red');
+      if (ally.health <= 0) scourgeArmy.splice(j, 1);
+    }
+  }
+
+});
+
+
   enemies.forEach(e => {
     if (Math.hypot(player.x-e.x, player.y-e.y) < player.size/2 + e.size/2) {
       player.health--;
@@ -1522,6 +1908,8 @@ for (let i = grenades.length - 1; i >= 0; i--) {
   // ─── DRAW ───────────────────────────────────────
   function draw() {
     if (!player) return;
+    const now = Date.now();
+
 
     // ─── BACKGROUND & GRID ─────────────────────────────
     ctx.fillStyle = curMode.bg;   // use current mode colour
@@ -1559,6 +1947,42 @@ for (let i = grenades.length - 1; i >= 0; i--) {
       ctx.fill();
     });
 
+// ─── DRAW MIND-CONTROLLED ALLIES ────────────────────────
+mindControlled.forEach(ally => {
+  const ex = ally.x - viewX,
+        ey = ally.y - viewY;
+
+  // draw the body bright yellow
+  ctx.fillStyle = 'yellow';
+  ctx.fillRect(
+    ex - ally.size/2,
+    ey - ally.size/2,
+    ally.size,
+    ally.size
+  );
+
+  // then draw the health bar as normal
+  const pct = ally.health / ally.maxHealth;
+  ctx.fillStyle   = '#0F0';
+  ctx.fillRect(
+    ex - ally.size/2,
+    ey - ally.size/2 - 8,
+    ally.size * pct,
+    6
+  );
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.strokeRect(
+    ex - ally.size/2,
+    ey - ally.size/2 - 8,
+    ally.size,
+    6
+  );
+});
+
+
+
+  
   /* eruptions (with fade & hue shift) */
   eruptions.forEach(e => {
     ctx.save();
@@ -1585,6 +2009,7 @@ for (let i = grenades.length - 1; i >= 0; i--) {
 
     ctx.restore();
   });
+  
 
   // draw oil puddles with fade
   oilPuddles.forEach(o => {
@@ -1638,6 +2063,46 @@ for (let i = grenades.length - 1; i >= 0; i--) {
         ctx.fill();
       ctx.restore();
     });
+
+
+
+
+    // ─── DRAW LIFE‐DRAIN BEAMS ─────────────────────────
+    lifeBeams = lifeBeams.filter(b => now - b.born < 200);
+    lifeBeams.forEach(b => {
+      const t = (now - b.born) / 200;      // 0 → 1 fade
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      // if color was passed in, use that; otherwise default to cyan
+      ctx.strokeStyle = b.color || '#0FF';
+
+        ctx.lineWidth   = 4 * (1 - t);
+        // jagged lightning
+        const segs = 16;
+        ctx.beginPath();
+        for (let i = 0; i <= segs; i++) {
+          const u = i / segs;
+          const x = b.x1 + (b.x2 - b.x1) * u + (Math.random() - 0.5) * 20 * (1 - t);
+          const y = b.y1 + (b.y2 - b.y1) * u + (Math.random() - 0.5) * 20 * (1 - t);
+          if (i === 0) ctx.moveTo(x - viewX, y - viewY);
+          else         ctx.lineTo(x - viewX, y - viewY);
+        }
+        ctx.stroke();
+      ctx.restore();
+    });
+    combatTexts = combatTexts.filter(ct => now - ct.born < 1000);
+    combatTexts.forEach(ct => {
+      const t     = (now - ct.born) / 1000;       // 0→1 over 1s
+      const alpha = 1 - t;
+      const dy    = -30 * t;                     // float upward
+      ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle   = ct.color;
+        ctx.font        = '20px sans-serif';
+        ctx.fillText(ct.text, ct.x - viewX, ct.y - viewY + dy);
+      ctx.restore();
+    });
+
 
     // ─── PLAYER ─────────────────────────────────────────
     const px = player.x - viewX,
@@ -1734,6 +2199,34 @@ for (let i = grenades.length - 1; i >= 0; i--) {
       ctx.fill();
     });
 
+
+      // ─── DRAW POISON PUDDLES ────────────────────────
+  poisonPuddles.forEach(p => {
+    const t      = (now - p.born) / p.duration; // 0→1
+    const alpha  = 0.4 * (1 - t);
+    const jitter = 8 * (1 - t);
+    const pts    = 12;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = '#0A0';   // toxic-green
+
+    ctx.translate(p.x - viewX, p.y - viewY);
+    ctx.beginPath();
+    for (let k = 0; k <= pts; k++) {
+      const ang = (k / pts) * Math.PI * 2;
+      // wobble the radius for that blobby look
+      const r = p.radius + Math.sin(ang * 3 + now / 200) * jitter;
+      const x = Math.cos(ang) * r;
+      const y = Math.sin(ang) * r;
+      k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+
+
     // ─── PLAYER BULLETS ──────────────────────────────────
     ctx.fillStyle = '#F5A623';
     bullets.forEach(b => {
@@ -1743,6 +2236,38 @@ for (let i = grenades.length - 1; i >= 0; i--) {
         b.size, b.size
       );
     });
+  // ─── DRAW MIND-CONTROLLED ALLIES ────────────────────────
+  mindControlled.forEach(ally => {
+    const ex = ally.x - viewX;
+    const ey = ally.y - viewY;
+
+    // bright yellow body while controlled
+    ctx.fillStyle = 'yellow';
+    ctx.fillRect(
+      ex - ally.size/2,
+      ey - ally.size/2,
+      ally.size,
+      ally.size
+    );
+
+    // health bar (same as before)
+    const pct = ally.health / ally.maxHealth;
+    ctx.fillStyle = '#0F0';
+    ctx.fillRect(
+      ex - ally.size/2,
+      ey - ally.size/2 - 8,
+      ally.size * pct,
+      6
+    );
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(
+      ex - ally.size/2,
+      ey - ally.size/2 - 8,
+      ally.size,
+      6
+    );
+  });
 
     // ─── ENEMIES ─────────────────────────────────────────
     enemies.forEach(e => {
@@ -2102,6 +2627,30 @@ stunGrenades.forEach(g => {
   }
 });
 
+// draw the mind-control projectiles in bright yellow:
+ctx.fillStyle = 'yellow';
+mindControlShots.forEach(s => {
+  ctx.fillRect(
+    s.x - viewX - s.size/2,
+    s.y - viewY - s.size/2,
+    s.size,
+    s.size
+  );
+});
+
+
+// ─── DRAW SCOURGE ARMY ─────────────────────────
+scourgeArmy.forEach(ally => {
+  const dx = ally.x - viewX, dy = ally.y - viewY;
+  ctx.fillStyle = 'purple';
+  ctx.fillRect(dx - ally.size/2, dy - ally.size/2, ally.size, ally.size);
+  // health bar
+  const pct = ally.health / ally.maxHealth;
+  ctx.fillStyle = '#0F0';
+  ctx.fillRect(dx - ally.size/2, dy - ally.size/2 - 6, ally.size*pct, 4);
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+  ctx.strokeRect(dx - ally.size/2, dy - ally.size/2 - 6, ally.size, 4);
+});
 
 
   }
@@ -2220,6 +2769,7 @@ let poisonTimer      = 0;
 let homingDrainTimer = 0;
 
 function updateAbilities() {
+  const now = Date.now();
   // ─── BLADE ORBIT ─────────────────────────────
   const blade = abilities[1];
   if (blade && blade.active && blade.level > 0) {
@@ -2609,6 +3159,99 @@ if (sd && sd.active && sd.level > 0) {
 }
 
 
+const poisonAb = abilities[13];
+  if (poisonAb && poisonAb.active && poisonAb.level > 0) {
+    if (!poisonAb.lastDrop) poisonAb.lastDrop = 0;
+    if (now - poisonAb.lastDrop >= POISON_CD_MS) {
+      poisonAb.lastDrop = now;
+      const t        = (poisonAb.level - 1) / (poisonAb.maxLevel - 1);
+      const duration = POISON_BASE_DURATION + t * (POISON_MAX_DURATION - POISON_BASE_DURATION);
+      const radius   = POISON_BASE_RADIUS   + t * (POISON_MAX_RADIUS   - POISON_BASE_RADIUS);
+      const dps      = POISON_BASE_DPS      + t * (POISON_MAX_DPS      - POISON_BASE_DPS);
+      poisonPuddles.push({
+        x:        player.x,
+        y:        player.y,
+        born:     now,
+        duration,
+        radius,
+       dps,
+        lastTick: now
+     });
+    }
+  }
+
+  // ─── MIND CONTROL (slot 14) ─────────────────────────
+  const mc = abilities[14];
+  if (mc && mc.active && mc.level > 0) {
+    const now = Date.now();
+    if (now - mc.lastFire >= MCTRL_COOLDOWN) {
+      mc.lastFire = now;
+      mindControlShots.push({
+        x: player.x,
+        y: player.y,
+        ang: player.angle,
+        spd: MCTRL_SHOT_SPEED,
+        size: MCTRL_SHOT_SIZE
+      });
+    }
+  }
+
+  // ─── DRAIN SOUL (slot 15) ─────────────────────────
+const ds = abilities[15];
+if (ds && ds.active && ds.level > 0) {
+  const now = Date.now();
+  // fire every 500 ms
+  if (!ds.lastSoul) ds.lastSoul = 0;
+  if (now - ds.lastSoul >= 500) {
+    ds.lastSoul = now;
+
+    // compute per‐level parameters
+    const lvl        = ds.level;
+    const multiplier = 5 + (lvl - 1) * ( (10 - 5) / 4 );    // 5× → 10×
+    const maxTargets = 10 + (lvl - 1) * 10;                // 10 → 50
+    const dmgPerHit  = currentWeapon.damage * multiplier * damageMultiplier;
+
+    // pick up to maxTargets closest
+    const targets = enemies
+      .filter(e => dist(player.x, player.y, e.x, e.y) < DRAIN_BASE_RADIUS)
+      .sort((a, b) => dist(player.x, player.y, a.x, a.y)
+                    - dist(player.x, player.y, b.x, b.y))
+      .slice(0, maxTargets);
+
+    let totalDealt = 0;
+    for (const target of targets) {
+      target.health -= dmgPerHit;
+      totalDealt    += dmgPerHit;
+      // purple damage text
+      spawnCombatText(target.x, target.y, `-${Math.round(dmgPerHit)}`, 'purple');
+      // purple beam
+      lifeBeams.push({
+        x1:    player.x,
+        y1:    player.y,
+        x2:    target.x,
+        y2:    target.y,
+        born:  now,
+        color: 'purple'
+      });
+      if (target.health <= 0) {
+        const idx = enemies.indexOf(target);
+        if (idx !== -1) handleEnemyDeath(idx);
+      }
+    }
+
+    // 1% of all damage back onto you
+    const selfDmg = totalDealt * 0.1;
+    player.health -= selfDmg;
+    spawnCombatText(player.x, player.y, `-${Math.round(selfDmg)}`, 'purple');
+  }
+}
+
+
+
+
+
+
+
 
 
 
@@ -2661,35 +3304,54 @@ function dist(x1, y1, x2, y2) {
   return Math.hypot(x1 - x2, y1 - y2);
 }
   /* ─── NEW: centralised death handler ─────────────────────────────── */
-  function handleEnemyDeath(idx) {
-    const e = enemies[idx];
+function handleEnemyDeath(idx) {
+  const e = enemies[idx];
 
-    if (e.isBoss) {
-      score += 100;
-      addEXP(100);
-      const drop = Math.floor(score / 10);
-      pickups.push({ x: e.x, y: e.y, size: 20, type: 'gold', value: drop });
-    } else {
-      score += 10;
-      addEXP(10);
-
-      // random pickup
-      let r = Math.random(), type = null;
-      if (r < 0.5)        type = null;
-      else if (r < 0.8)   type = 'gold';
-      else if (r < 0.95)  type = 'ammo';
-      else                type = 'health';
-      if (type) {
-        const val =
-          type === 'ammo'   ? 100 :
-          type === 'health' ?  30 :
-          (e.size > 60 ? 10 : e.size > 40 ? 5 : 2);
-        pickups.push({ x: e.x, y: e.y, size: 20, type, value: val });
-      }
-    }
-
-    enemies.splice(idx, 1);        // remove from array
+  // ─── 1) Resurrection ─────────────────────
+  const scAb = abilities[16];  // assuming slot 16 is Scourge
+  const cap  = Math.round(
+    SCOURGE_BASE_COUNT
+    + (scAb.level - 1) * (SCOURGE_MAX_COUNT - SCOURGE_BASE_COUNT) / 4
+  );
+  if (scAb && scAb.active && scourgeArmy.length < cap) {
+    scourgeArmy.push({
+      x:         e.x,
+      y:         e.y,
+      size:      e.size,
+      speed:     e.speed,
+      health:    e.maxHealth,
+      maxHealth: e.maxHealth,
+      meleeDamage: SCOURGE_MELEE_DAMAGE,
+      isBoss:    !!e.isBoss
+    });
   }
+
+  // ─── 2) Award score, XP & drop pickups ────
+  if (e.isBoss) {
+    score += 100;
+    addEXP(100);
+    const drop = Math.floor(score / 10);
+    pickups.push({ x:e.x, y:e.y, size:20, type:'gold', value:drop });
+  } else {
+    score += 10;
+    addEXP(10);
+    let r = Math.random(), type = null;
+    if (r < 0.5)        type = null;
+    else if (r < 0.8)   type = 'gold';
+    else if (r < 0.95)  type = 'ammo';
+    else                type = 'health';
+    if (type) {
+      const val = type==='ammo'   ? 100 :
+                  type==='health' ?  30 :
+                  (e.size>60?10:e.size>40?5:2);
+      pickups.push({ x:e.x, y:e.y, size:20, type, value:val });
+    }
+  }
+
+  // ─── 3) Remove the dead enemy ─────────────
+  enemies.splice(idx,1);
+}
+
 // 1) Set up each slot exactly once, *after* your slots have been remapped & unlocked
 // 1) Set up each slot exactly once, *after* your slots have been remapped & unlocked
 function prepareAbilityUI() {
