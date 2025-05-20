@@ -168,8 +168,8 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
   let DBG = {
     lastDelay   : 0,
     lastWave    : 0,
-    maxEnemies  : 5000,
-    minDelay    : 5           // ← NEW  user-tweakable floor (ms)
+    maxEnemies  : 10000,
+    minDelay    : 1           // ← NEW  user-tweakable floor (ms)
   };
 
   // oil stuff
