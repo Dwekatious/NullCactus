@@ -3239,8 +3239,8 @@ if (ds && ds.active && ds.level > 0) {
       }
     }
 
-    // 1% of all damage back onto you
-    const selfDmg = totalDealt * 0.1;
+    // 2% of all damage back onto you
+    const selfDmg = totalDealt * 0.02;
     player.health -= selfDmg;
     spawnCombatText(player.x, player.y, `-${Math.round(selfDmg)}`, 'purple');
   }
