@@ -586,10 +586,7 @@ body.late-phase {
   animation: pulse 0.3s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+
 
 a {
   text-decoration: none;
@@ -643,10 +640,6 @@ a {
 @keyframes pulse {
   0%,100% { transform: scale(1); }
   50%     { transform: scale(1.2); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 
@@ -837,8 +830,7 @@ a {
 }
 
 /* disable arrow when maxed */
-.skill-up-btn.disabled { display: none; }
-.skill-up-btn.disabled { display: none; }
+
 .skill-up-btn.disabled { display:none; }
 
 
@@ -984,3 +976,160 @@ a {
 }
 
 
+/* ================= Guide Panels Styling ================= */
+
+/* Common panel styles */
+.guide-panel-L,
+.guide-panel-R {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  max-height: 70vh;
+  background: rgba(20, 22, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  color: #e0e0e0;
+  font-family: Arial, sans-serif;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+/* Positioning */
+.guide-panel-L {
+  left: 5%;
+}
+.guide-panel-R {
+  right: 5%;
+}
+
+/* Headers */
+.guide-panel-L h3,
+.guide-panel-R h3 {
+  font-size: 1.5rem;
+  color: #4A90E2;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+}
+.guide-panel-L h3::after,
+.guide-panel-R h3::after {
+  content: "";
+  display: block;
+  width: 48px; height: 2px;
+  background: #fea400;
+  margin: 8px auto 0;
+}
+
+/* Sections */
+.cls-block + .cls-block {
+  margin-top: 16px;
+}
+.cls-block h4 {
+  font-size: 1.2rem;
+  color: #fea400;
+  margin-bottom: 4px;
+}
+.cls-block p {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.abilities-section {
+  margin-top: 24px;
+}
+.abilities-section h4 {
+  font-size: 1.1rem;
+  color: #fea400;
+  margin-bottom: 12px;
+}
+.ability-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px 16px;
+}
+
+.hotkey-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 1rem;
+}
+.hotkey-list li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.hotkey-list kbd {
+  background: #222;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-right: 12px;
+  color: #fea400;
+  font-size: 0.9rem;
+}
+
+/* ===== Custom Scrollbar ===== */
+/* Firefox */
+.guide-panel-L,
+.guide-panel-R {
+  scrollbar-width: thin;
+  scrollbar-color: #fea400 rgba(255,255,255,0.05);
+}
+/* WebKit */
+.guide-panel-L::-webkit-scrollbar,
+.guide-panel-R::-webkit-scrollbar {
+  width: 8px;
+}
+.guide-panel-L::-webkit-scrollbar-track,
+.guide-panel-R::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+}
+.guide-panel-L::-webkit-scrollbar-thumb,
+.guide-panel-R::-webkit-scrollbar-thumb {
+  background-color: #fea400;
+  border-radius: 4px;
+  border: 2px solid rgba(0,0,0,0.2);
+}
+.guide-panel-L::-webkit-scrollbar-thumb:hover,
+.guide-panel-R::-webkit-scrollbar-thumb:hover {
+  background-color: #ffc34d;
+}
+
+/* ================= Styled Ability List ================= */
+.ability-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 24px;
+  margin: 0;
+  padding: 0;
+}
+.ability-item {
+  margin: 0 0 12px;
+}
+.ability-item dt {
+  font-weight: 600;
+  color: #fea400;
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+.ability-item dd {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #ccc;
+}
+
+
+.guide-panel-R {
+  /* was 300px; make it 360px (or whatever you like) */
+  width:500px;
+}
