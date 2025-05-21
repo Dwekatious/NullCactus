@@ -10,6 +10,37 @@ const SLOT_MAP = {
   // add more classes here if needed
 };
 
+score = 0;
+gold = 100000000;
+// ─── HOVER TOOLTIP DESCRIPTIONS ─────────────────────────
+const ABILITY_DESCRIPTIONS = {
+  tank: {
+    1: 'Blade Orbit: Summon spinning blades that orbit you, shredding any enemy that gets too close.',
+    2: 'Insanity: Doubles your speed & damage but slowly drains your health while active.',
+    3: 'Grenade: Auto-throws grenades that burst into a hail of deadly shrapnel.',
+    4: 'Backup: Spawn clones of yourself to fight alongside you for a short time.'
+  },
+  assault: {
+    5: 'Homing Bullets: Your shots home in on the nearest targets.',
+    6: 'RPG Launcher: Fires rockets that explode on impact, dealing massive area damage.',
+    7: 'Century Gun: Deploy stationary turrets in a circle around you.',
+    8: 'Stun Grenade: Tosses grenades that stun all enemies in the blast radius.'
+  },
+  sniper: {
+    9:  'Piercing Shot: Sniper rounds pierce through multiple enemies in a line.',
+    10: 'Subterfuge: Deploy decoy dummies to distract and draw enemy fire.',
+    11: 'Shuricane Trap: Place spinning blade traps that slice anything nearby.',
+    12: 'Spotter Drone: Summon a drone that buffs you and harasses foes.'
+  },
+  medic: {
+    13: 'Poison Bomb: Release toxic clouds that damage enemies over time.',
+    14: 'Mind Control: Fire projectiles that convert enemies to fight for you.',
+    15: 'Drain Soul: Send beams at multiple foes to leech their life and heal you.',
+    16: 'Scourge Army: Raise fallen enemies as skeletal allies to swarm your foes.'
+  }
+};
+
+
 // ─── SCOURGE ARMY GLOBALS ─────────────────────────
 let scourgeArmy = [];
 const SCOURGE_BASE_COUNT  = 5;
@@ -25,9 +56,9 @@ function spawnCombatText(x, y, text, color) {
 
 // ─── LIFE DRAIN GLOBALS ─────────────────────────
 let lifeBeams = [];
-const DRAIN_BASE_RADIUS    = 500;  // how far it searches
-const DRAIN_BASE_DAMAGE    = 20;   // base damage & healing
-const DRAIN_BASE_FIRE_RATE = 250;  // ms between shots
+const DRAIN_BASE_RADIUS    = 450;  // how far it searches
+const DRAIN_BASE_DAMAGE    = 10;   // base damage & healing
+const DRAIN_BASE_FIRE_RATE = 325;  // ms between shots
 
 // SPOTTER DRONE GLOBALS
 let spotterDrone = null;
@@ -169,7 +200,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
     lastDelay   : 0,
     lastWave    : 0,
     maxEnemies  : 10000,
-    minDelay    : 1           // ← NEW  user-tweakable floor (ms)
+    minDelay    : 1          // ← NEW  user-tweakable floor (ms)
   };
 
   // oil stuff
@@ -289,8 +320,8 @@ let explosions  = [];
 
   /* ─── SHOP / GOLD COUNTER REFRESH ─────────────────── */
 function refreshPanel() {
-  // show current gold in the little “g” badge
   upGold.textContent = gold;
+  updateUpgradeButtons();          // <- add this line
 }
 
 // how long grenade-spawned bullets live (in seconds)
@@ -483,11 +514,28 @@ function updateClones() {
     magnet:   "Magnetic Pull "
   };
 
-  function updateUpgradeButtons() {
+  
+ function updateUpgradeButtons() {
+    // 2a) refresh the Gold display
+    upGold.textContent = gold;
+
+    // 2b) for each button, pull its data-upgrade → look up cost
     document.querySelectorAll('.upgrade-btn').forEach(btn => {
-      const key = btn.dataset.upgrade;
-      if (!upgrades[key]) return;
-      btn.textContent = `${upgradeLabels[key]} — ${upgrades[key].cost} g`;
+      const key  = btn.dataset.upgrade;
+      const up   = upgrades[key];
+      const cost = up.cost;
+
+      // set the badge
+      btn.querySelector('.cost').textContent = cost + 'g';
+
+      // disable if you can't afford it
+      if (gold < cost) {
+        btn.classList.add('disabled');
+        btn.disabled = true;
+      } else {
+        btn.classList.remove('disabled');
+        btn.disabled = false;
+      }
     });
   }
 
@@ -522,7 +570,9 @@ function updateClones() {
   const mapSize = 5000;
   let player, keys = {}, bullets = [], enemies = [], objects = [], pickups = [];
   let orbitTriangles = [];
-  let score = 0, reserve = maxReserve, gold = 0;
+    score   = 0;
+  reserve = maxReserve;
+  gold    = 0;
   let ammo = magSize, reloading = false, reloadStart = 0, reloadDur = 1000;
   
   let gameStarted = false;
@@ -539,7 +589,41 @@ function updateClones() {
     loadHighs();
     ui.style.display = 'none';
     initGame();
-    
+    // in your DOMContentLoaded, before initGame()
+const bg = document.getElementById('bgCanvas');
+const bctx = bg.getContext('2d');
+function resizeBG() {
+  bg.width = innerWidth;
+  bg.height = innerHeight;
+}
+resizeBG();
+window.addEventListener('resize', resizeBG);
+
+const stars = Array.from({length:200}, () => ({
+  x: Math.random()*bg.width,
+  y: Math.random()*bg.height,
+  r: Math.random()*1.5+0.5,
+  dx: (Math.random()-0.5)*0.2,
+  dy: (Math.random()-0.5)*0.2
+}));
+
+function drawStars() {
+  bctx.clearRect(0,0,bg.width,bg.height);
+  stars.forEach(s => {
+    s.x += s.dx; s.y += s.dy;
+    if (s.x < 0) s.x = bg.width;
+    if (s.x > bg.width) s.x = 0;
+    if (s.y < 0) s.y = bg.height;
+    if (s.y > bg.height) s.y = 0;
+    bctx.beginPath();
+    bctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    bctx.fillStyle = 'rgba(255,255,255,0.7)';
+    bctx.fill();
+  });
+  requestAnimationFrame(drawStars);
+}
+drawStars();
+
    
   };
 
@@ -593,7 +677,7 @@ cleanStartBtn.addEventListener('click', () => {
     maxHealth: BASE_PLAYER_HP,
     level: 1
   };
-  score = gold = 0;
+  
   reserve = maxReserve;
   ammo = magSize;
   reloading = false;
@@ -716,6 +800,38 @@ else if (playerClass === 'medic') {
   prepareAbilityUI();
   refreshSkillArrows();
 
+  
+  // bind number keys 1–4 to ability slots
+  document.addEventListener('keydown', e => {
+    if (!gameStarted) return;               // only when playing
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 4) {
+      const slots = document.querySelectorAll('.ability-slot');
+      const slot = slots[n - 1];
+      if (slot && !slot.classList.contains('locked')) {
+        slot.click();                        // triggers your existing toggle logic
+      }
+    }
+  });
+
+let paused = false;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !e.repeat) {
+    paused = !paused;
+    gameStarted = !paused;
+
+    // show/hide your overlay
+    const overlay = document.getElementById('pauseOverlay');
+    if (overlay) overlay.style.display = paused ? 'block' : 'none';
+
+    // when un-pausing, restart the loop
+    if (!paused) {
+      requestAnimationFrame(loop);
+    }
+  }
+});
+
+
   // ─── Show / hide the appropriate panels ───────────────────────
   ui.style.display           = 'none';
   upgradePanel.style.display = 'block';
@@ -733,6 +849,29 @@ else if (playerClass === 'medic') {
   scheduleNextSpawn();
   scheduleNextBoss();
   requestAnimationFrame(loop);
+  // ─── UPGRADE HOTKEYS: Z X C V B ────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!gameStarted) return;           // only when in‐game
+  const map = {
+    z: 'health',
+    x: 'damage',
+    c: 'magSize',
+    v: 'fireRate',
+    b: 'magnet'
+  };
+  const upgradeKey = map[e.key.toLowerCase()];
+  if (!upgradeKey) return;
+
+  // find the corresponding button in the shop
+  const btn = document.querySelector(
+    `#upgradePanel .upgrade-btn[data-upgrade="${upgradeKey}"]`
+  );
+  // only click if it exists and you can afford it
+  if (btn && !btn.classList.contains('disabled') && gold >= upgrades[upgradeKey].cost) {
+    btn.click();
+  }
+});
+
   
 }
 
@@ -763,7 +902,8 @@ function spawnBoss(){
   enemies.push({
     ...def,
     x, y,
-    maxHealth: def.health,
+    maxHealth: def.health * modeHpMultiplier(),
+    health:    def.health * modeHpMultiplier(),
     isBoss: true
   });
 }
@@ -813,13 +953,14 @@ function spawnEnemy() {
   /* buffs scale with difficulty */
   const diff       = difficultyT(Date.now() - spawnStartTime);
   const hpBuff     = 1 + diff * 0.4;   // up to ×2.6
+  const modeMul = modeHpMultiplier();
   const speedBuff  = 1 + diff * 0.15;  // up to ×1.6
 
   enemies.push({
     x, y,
     size: def.size,
-    health:    def.health * hpBuff,
-    maxHealth: def.health * hpBuff,
+    health:    def.health * hpBuff * modeMul,
+    maxHealth: def.health * hpBuff * modeMul,
     speed:     def.speed  * speedBuff,
     color:     def.color,
     type:      typeKey
@@ -1069,6 +1210,14 @@ function spawnFlyingInsanity(){
       w:    120,      // make them a bit larger if you like
       h:    120,
       rot:  ang,
+      born: Date.now()
+    });
+        oilPuddles.push({
+      x:    player.x + Math.cos(ang) * dist,
+      y:    player.y + Math.sin(ang) * dist,
+      w:    120,      // make them a bit larger if you like
+      h:    120,
+      rot:  -ang,
       born: Date.now()
     });
   }
@@ -1696,6 +1845,20 @@ for (let i = bullets.length - 1; i >= 0; i--) {
       if (p.type==='ammo')   reserve += p.value;
       if (p.type==='health') player.health = Math.min(player.maxHealth, player.health+p.value);
       if (p.type==='gold')   gold    += p.value;
+      /* 2️⃣  show floating text (same style as damage/heal) */
+      const txt = p.type==='ammo'   ? `+${p.value} ammo`
+                : p.type==='health' ? `+${p.value} hp`
+                :                     `+${p.value} g`;
+      const col = p.type==='ammo'   ? '#F5A623'
+                : p.type==='health' ? 'lime'
+                :                     '#FFD700';
+      spawnCombatText(
+        player.x + (Math.random()-0.5)*40,   // slight offset
+        player.y + (Math.random()-0.5)*20,
+        txt,
+        col
+      );
+
       pickups.splice(i,1);
     }
   });
@@ -2655,6 +2818,13 @@ scourgeArmy.forEach(ally => {
 
   }
 
+  function modeHpMultiplier () {
+  return curMode.name === 'purgatory' ? 2
+       : curMode.name === 'abyss'     ? 5
+       : curMode.name === 'inferno'   ?10
+       : 1;
+}
+
 
   // ─── UI UPDATE HELPERS ──────────────────────────
   function pop(el) {
@@ -3357,27 +3527,37 @@ function handleEnemyDeath(idx) {
 function prepareAbilityUI() {
   document.querySelectorAll('.ability-slot').forEach(slotEl => {
     const raw = slotEl.dataset.slot;
-    if (!raw || isNaN(raw)) return;           // ← skip uninitialized slots
+    if (!raw || isNaN(raw)) return;
+
     const abilityId = +raw;
+    const descMap   = ABILITY_DESCRIPTIONS[playerClass] || {};
+    const text      = descMap[abilityId] || '';
 
-    // position context for the arrow
-    slotEl.style.position = 'relative';
+    // remove any old tooltip
+    const old = slotEl.querySelector('.tooltip');
+    if (old) old.remove();
 
-    // inject a little green arrow, if we haven’t yet
+    // inject our styled tooltip
+    if (text) {
+      const tip = document.createElement('div');
+      tip.className = 'tooltip';
+      tip.textContent = text;
+      slotEl.appendChild(tip);
+    }
+
+    // — your existing arrow + click wiring below —
+    slotEl.style.position = 'relative'; // just in case
     let arrow = slotEl.querySelector('.skill-up-btn');
     if (!arrow) {
       arrow = document.createElement('div');
       arrow.className = 'skill-up-btn';
       slotEl.appendChild(arrow);
-
-      // spend a point when I click *the arrow*, but don’t bubble up
       arrow.addEventListener('click', e => {
         e.stopPropagation();
         attemptUpgrade(abilityId, arrow);
       });
     }
 
-    // clicking *the rest* of the slot toggles active/inactive
     slotEl.addEventListener('click', () => {
       const ab = abilities[abilityId];
       if (!ab || player.level < ab.unlockLevel) return;
@@ -3385,7 +3565,7 @@ function prepareAbilityUI() {
       slotEl.classList.toggle('ability-active', ab.active);
       if (ab.name === 'Backup') {
         if (ab.active) spawnBackupClones(ab.level);
-        else            clones = [];
+        else clones = [];
       }
     });
   });
@@ -3479,6 +3659,9 @@ function attemptUpgrade(abilityId, arrowEl) {
     const diff      = 0.6 + difficultyT(elapsedMs);
     let   baseDelay = 3000 / (1 + diff * 2);        // 3 s → ~375 ms
     let   baseWave  = 1 + Math.floor(diff * 1.5);   // 1 → 7
+    // extra pressure in late modes
+    if (curMode.name === 'abyss')    baseWave *= 5;   // ×5
+    if (curMode.name === 'inferno')  baseWave *= 10;  // ×10
 
     /* ── INFERNO tweaks ───────────────────────────── */
     if (curMode.name === 'inferno') {
@@ -3622,6 +3805,60 @@ setInterval(()=> {
 */
 
 
+/* ---------- GUIDE MENU ---------- */
+const guideOverlay   = document.getElementById('guideOverlay');
+const guideAbilities = document.getElementById('guideAbilities');
+const guideHotkeys   = document.getElementById('guideHotkeys');
+const resumeBtn      = document.getElementById('resumeBtn');
+
+/* Build the guide once */
+(function buildGuide(){
+  /* 3.1 abilities grouped by class */
+  Object.entries(ABILITY_DESCRIPTIONS).forEach(([cls, map])=>{
+    const h = document.createElement('h3');
+    h.textContent = cls[0].toUpperCase()+cls.slice(1);
+    guideAbilities.appendChild(h);
+
+    const ul = document.createElement('ul');
+    Object.entries(map).forEach(([id, desc])=>{
+      const name = abilities[id]?.name || '???';
+      const li   = document.createElement('li');
+      li.textContent = `${name} – ${desc}`;
+      ul.appendChild(li);
+    });
+    guideAbilities.appendChild(ul);
+  });
+
+  /* 3.2 hot-keys */
+  [
+    ['W A S D',    'Move'],
+    ['Mouse LMB',  'Shoot / hold to autofire'],
+    ['R',          'Reload'],
+    ['1 2 3 4',    'Toggle abilities'],
+    ['Z X C V B',  'Buy upgrades'],
+    ['Esc',        'Open / close guide']
+  ].forEach(([key, info])=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<kbd>${key}</kbd> – ${info}`;
+    guideHotkeys.appendChild(li);
+  });
+})();
+
+/* ---------- Pause / resume -------- */
+let paused = false;
+document.addEventListener('keydown', e=>{
+  if (e.key !== 'Escape' || e.repeat) return;
+  paused = !paused;
+  gameStarted = !paused;                 // you already gate the loop with this
+  guideOverlay.classList.toggle('hidden', !paused);
+  if (!paused) requestAnimationFrame(loop);
+});
+
+resumeBtn.onclick = () => {
+  paused = false; gameStarted = true;
+  guideOverlay.classList.add('hidden');
+  requestAnimationFrame(loop);
+};
 
 
 
