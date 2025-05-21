@@ -10,8 +10,13 @@ const SLOT_MAP = {
   // add more classes here if needed
 };
 
+// ─── CUSTOMIZABLE PIERCING‐SHOT CONFIG ───────────────────────
+const PIERCE_SHOT_SIZE       = 24;  // ⬅ adjust this to scale both arrow & trail thickness
+const PIERCE_TRAIL_LENGTH    = 12;  // ⬅ how many “segments” long the fading tail is
+
+
 score = 0;
-gold = 100000000;
+gold = 0;
 // ─── HOVER TOOLTIP DESCRIPTIONS ─────────────────────────
 const ABILITY_DESCRIPTIONS = {
   tank: {
@@ -45,7 +50,7 @@ const ABILITY_DESCRIPTIONS = {
 let scourgeArmy = [];
 const SCOURGE_BASE_COUNT  = 5;
 const SCOURGE_MAX_COUNT   = 10;
-const SCOURGE_MELEE_DAMAGE = 1; // dial this down if it still feels too strong
+const SCOURGE_MELEE_DAMAGE = 2; // dial this down if it still feels too strong
 
 // top of paintball.js
 let combatTexts = [];
@@ -97,8 +102,8 @@ const PIERCE_MAX_COUNT          = 100;   // at lvl5
 const CENTURY_RADIUS       = 300;      // spawn radius around player
 const CENTURY_UPTIME_MS    = 20_000;   // how long they stay
 const CENTURY_COOLDOWN_MS  = 5_000;   // then disappear
-const BASE_CENTURY_DAMAGE  = 50;       // level 1 damage
-const BASE_CENTURY_RATE    = 500;     // level 1 fires every 2 s
+const BASE_CENTURY_DAMAGE  = 100;       // level 1 damage
+const BASE_CENTURY_RATE    = 250;     // level 1 fires every 2 s
 let centuryPhaseStart      = 0;        // when the current cycle began
 const CENTURY_RANGE = 300;
 
@@ -126,11 +131,11 @@ const SHURI_MAX_DURATION   = 20000;
 
 // per-blade damage scales 20 → 100 over 1→5
 const SHURI_BASE_DMG       =   20;
-const SHURI_MAX_DMG        =  100;
+const SHURI_MAX_DMG        =  200;
 
 
 
-// ─── GLOBALS (near top of your script) ───────────────────────
+// ─── DUMMIES (near top of your script) ───────────────────────
 let subDummies = [];
 const SUB_BASE_INTERVAL  = 25000;  // ms at lvl1
 const SUB_MIN_INTERVAL   = 10000;  // ms at lvl5
@@ -156,10 +161,10 @@ const STUN_ANIM_MS        = 400;    // ring grows from 0→full in 0.4s
 
 
 // max at level 1, scaled upward
-const RPG_BASE_SIZE     = 12;    // half-width of the rocket body at level 1
-const RPG_BASE_RADIUS   = 100;   // explosion AOE at level 1
+const RPG_BASE_SIZE     = 25;    // half-width of the rocket body at level 1
+const RPG_BASE_RADIUS   = 250;   // explosion AOE at level 1
 const RPG_SCALE_PER_LVL = 0.35;  // +15% size & radius per extra level
-const RPG_BASE_DAMAGE   = 50;    // base explosion damage at level 1
+const RPG_BASE_DAMAGE   = 150;    // base explosion damage at level 1
 
 // ─── POISON BOMB GLOBALS ─────────────────────────
 let poisonPuddles = [];
@@ -175,7 +180,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
 
 
   const BASE_HOMING_RADIUS  = 450;   // px at level 1
-  const HOMING_DAMAGE_BONUS = 0.25;  // +25% per level
+  const HOMING_DAMAGE_BONUS = 2;  // +25% per level
   // ─── INITIAL STATE & DATA ─────────────────────────
   let magSize             = 30;        // How many rounds fit in one magazine initially
   let baseBulletDamage    = 30;        // The starting damage of each shot
@@ -446,7 +451,7 @@ function updateClones() {
     5: { name: 'Homing Bullets',  unlockLevel: 1, level: 0, maxLevel: 5, active: false },
     6: { name: 'RPG Launcher',    unlockLevel: 3, level: 0, maxLevel: 5, active: false },
     7: { name: 'Century Gun',     unlockLevel: 5, level: 0, maxLevel: 5, active: false },
-    8: { name: 'Stun Grenade',    unlockLevel: 8, level: 0, maxLevel: 5, active: false },
+    8: { name: 'Stun Grenade',    unlockLevel: 100, level: 0, maxLevel: 5, active: false },
    
    
    
@@ -666,6 +671,10 @@ cleanStartBtn.addEventListener('click', () => {
 
 
  function initGame() {
+
+
+  document.getElementById('preGameExtras').style.display = 'none';
+
   // ─── Initialize player and reset stats ─────────────────────────
   player = {
     x: mapSize / 2,
@@ -685,8 +694,10 @@ cleanStartBtn.addEventListener('click', () => {
 
   // ─── Initialize player class and remap ability slots ───────────────
   if (playerClass === 'tank') {
+    
     currentWeaponKey = 'buckshot';
     currentWeapon    = { ...weapons.buckshot };
+
 
     document.querySelectorAll('.ability-slot').forEach((slotEl, i) => {
       const id = SLOT_MAP.default[i]; // [1,2,3,4]
@@ -703,9 +714,11 @@ cleanStartBtn.addEventListener('click', () => {
     abilities[2].unlockLevel = 4;
     abilities[2].level       = Math.max(1, abilities[2].level);
     upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => btn.style.display = 'none');
+
+    player.health = 1000;
+    player.maxHealth = 1000;
   }
 else if (playerClass === 'assault') {
-  // switch to minigun
   currentWeaponKey = 'minigun';
   currentWeapon   = { ...weapons.minigun };
 
@@ -725,6 +738,8 @@ else if (playerClass === 'assault') {
       btn.style.display = 'none';
     }
   });
+  magSize = 100;
+  ammo = magSize;
 }
 
 else if (playerClass === 'sniper') {
@@ -748,8 +763,8 @@ else if (playerClass === 'sniper') {
     btn.style.display = btn.dataset.weapon === 'sniper' ? 'block' : 'none';
   });
 
-  magSize = 1;
-  upgrades.magSize.cost = 100
+  magSize = 5;
+  
   ammo = magSize;
   updateUpgradeButtons();
 }
@@ -1087,77 +1102,94 @@ function update() {
 
 
 
+// Updated shoot() to include sniper-level piercing shots
 function shoot() {
   const now = Date.now();
+
+  // ─── Medic: Life Drain ─────────────────────────
   if (playerClass === 'medic') {
-    // enforce fire‐rate
     if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
     player.lastShot = now;
 
-    // ─── use player.level as target count ───────────────
-    const maxTargets = 1+ player.level/2;    // 1 target at lvl1, 2 at lvl2, etc.
-
-    // find in‐range enemies, sort by distance, take up to maxTargets
+    // Number of targets scales with level (1 per 3 levels)
+    const maxTargets = Math.max(1, Math.ceil(player.level / 3));
     const targets = enemies
       .filter(e => dist(player.x, player.y, e.x, e.y) < DRAIN_BASE_RADIUS)
-      .sort((a, b) =>
-        dist(player.x, player.y, a.x, a.y)
-      - dist(player.x, player.y, b.x, b.y)
-      )
+      .sort((a, b) => dist(player.x, player.y, a.x, a.y) - dist(player.x, player.y, b.x, b.y))
       .slice(0, maxTargets);
 
-    if (targets.length === 0) return;
-
+    if (!targets.length) return;
     const dmg = currentWeapon.damage * damageMultiplier;
 
-    // hit each one
     for (const target of targets) {
       target.health -= dmg;
       spawnCombatText(target.x, target.y, `-${dmg}`, 'red');
-      if (target.health <= 0) {
-        const idx = enemies.indexOf(target);
-        if (idx !== -1) handleEnemyDeath(idx);
-      }
+      if (target.health <= 0) handleEnemyDeath(enemies.indexOf(target));
 
-      // heal for same amount
+      // Heal player for same amount
       player.health = Math.min(player.maxHealth, player.health + dmg);
       spawnCombatText(player.x, player.y, `+${dmg}`, 'lime');
 
-      // beam effect
-      lifeBeams.push({
-        x1: player.x, y1: player.y,
-        x2: target.x, y2: target.y,
-        born: now
-      });
+      // Beam effect
+      lifeBeams.push({ x1: player.x, y1: player.y, x2: target.x, y2: target.y, born: now });
     }
-
-    return; // skip normal bullet logic
+    return; // Skip normal shooting logic
   }
 
-
-  
+  // ─── Rate Limit ─────────────────────────────
   if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
   player.lastShot = now;
 
-  // only Assault gets homing
-  let level = 0;
-  if (playerClass === 'assault') {
-    const homingId = SLOT_MAP.assault[0];      // first button → ability 5
-    const hb       = abilities[homingId];
-    if (hb && hb.active && hb.level > 0) {
-      level = hb.level;
+// ─── Sniper ───────────────────────────────────
+  if (playerClass === 'sniper') {
+    /* is ability 9 (“Piercing Shot”) toggled on? */
+    const pierceActive =
+      abilities[9] && abilities[9].active && abilities[9].level > 0;
+
+    if (pierceActive) {
+      // ► special arrow that pierces
+      piercingShots.push({
+        x:  player.x,
+        y:  player.y,
+        ang: player.angle,
+                spd: 20,
+        size: PIERCE_SHOT_SIZE,
+        damage: currentWeapon.damage * damageMultiplier,
+        remaining: Math.max(1, player.level),
+        path: []
+      });
+    } else {
+      // ► normal sniper round (little square)
+      bullets.push({
+       x:  player.x,
+        y:  player.y,
+        ang: player.angle,
+        spd: 20,
+       size: 8,            // whatever your default is
+        damage: currentWeapon.damage * damageMultiplier
+      });
     }
+
+    /*  ↓↓↓ same bookkeeping every gun uses ↓↓↓ */
+    ammo--;
+    updateUI();
+    if (ammo === 0) startReload();
+    return;                       // skip assault/minigun code
   }
 
+  // ─── Assault: Homing Logic ───────────────────
+  let level = 0;
+  if (playerClass === 'assault') {
+    const homingId = SLOT_MAP.assault[0];
+    const hb       = abilities[homingId];
+    if (hb && hb.active && hb.level > 0) level = hb.level;
+  }
   const radius = BASE_HOMING_RADIUS * level;
-  const dmgMul = level > 0
-               ? 1 + HOMING_DAMAGE_BONUS * (level - 1)
-               : 1;
+  const dmgMul = level > 0 ? 1 + HOMING_DAMAGE_BONUS * level : 1;
 
   for (let i = 0; i < currentWeapon.bullets; i++) {
     let ang;
     if (level > 0) {
-      // perfect‐lock homing
       let target = null, best = Infinity;
       for (const e of enemies) {
         const d = dist(player.x, player.y, e.x, e.y);
@@ -1186,10 +1218,12 @@ function shoot() {
     });
   }
 
+  // ─── Ammo & Reload ───────────────────────────
   ammo--;
   updateUI();
   if (ammo === 0) startReload();
 }
+
 
 
 
@@ -1261,7 +1295,7 @@ function spawnEruption(){
 function update() {
   if (!player) return;
 
-  const sg = abilities[8];
+ 
 
   // ─── TIMING & DIFFICULTY ─────────────────────────────
   const now        = Date.now();
@@ -1348,36 +1382,50 @@ for (let i = mindControlled.length - 1; i >= 0; i--) {
   });
 
 
-    // ─── PROCESS STUN GRENADES ─────────────────────────────
+// ─── PROCESS & APPLY STUN GRENADES ─────────────────────────
+const sg = abilities[8];
+if (sg && sg.active && sg.level > 0) {
+  const now = Date.now();
+
   for (let i = stunGrenades.length - 1; i >= 0; i--) {
     const g   = stunGrenades[i];
-    const age = Date.now() - g.born;
+    const age = now - g.born;
 
     // explode
     if (!g.exploded && age >= STUN_FUSE_MS) {
       g.exploded = true;
 
-      // interpolate count & duration by level
-      const lerp = (lvl) => (min, max) => min + (max - min) * (lvl - 1) / (abilities[8].maxLevel - 1);
-      const byLvlCount    = lerp(sg.level)(STUN_BASE_COUNT,    STUN_MAX_COUNT);
-      const byLvlDuration = lerp(sg.level)(STUN_BASE_DURATION, STUN_MAX_DURATION);
+      // compute count & duration by level
+      const t              = (sg.level - 1) / (sg.maxLevel - 1);
+      const count          = Math.round(STUN_BASE_COUNT    + t * (STUN_MAX_COUNT    - STUN_BASE_COUNT));
+      const durationMs     = Math.round(STUN_BASE_DURATION + t * (STUN_MAX_DURATION - STUN_BASE_DURATION));
 
-      // stun nearest N enemies in radius
-      const inRange = enemies
+      // stun up to `count` nearest enemies within g.radius
+      enemies
         .filter(e => dist(e.x, e.y, g.x, g.y) <= g.radius)
         .sort((a,b) => dist(a.x,a.y,g.x,g.y) - dist(b.x,b.y,g.x,g.y))
-        .slice(0, Math.round(byLvlCount));
-
-      inRange.forEach(e => {
-        e.stunnedUntil = Date.now() + byLvlDuration;
-      });
+        .slice(0, count)
+        .forEach(e => {
+          e.stunnedUntil = now + durationMs;
+        });
     }
 
-    // cleanup after explosion is done
+    // cleanup old grenades
     if (age >= STUN_FUSE_MS + STUN_MAX_DURATION) {
       stunGrenades.splice(i, 1);
     }
   }
+
+  // prevent stunned enemies from acting
+  enemies.forEach(e => {
+    if (e.stunnedUntil && Date.now() < e.stunnedUntil) {
+      e._skip = true;
+    } else {
+      delete e._skip;
+    }
+  });
+}
+
 
   // ─── PREVENT STUNNED ENEMIES FROM ACTING ─────────────────
   enemies.forEach(e => {
@@ -3074,7 +3122,7 @@ function updateAbilities() {
       if (inUpTime) {
         if (!cg.turrets) {
           cg.turrets = [];
-          for (let i = 0; i < cg.level; i++) {
+          for (let i = 0; i < cg.level*3; i++) {
             const a = Math.random() * Math.PI * 2;
             cg.turrets.push({
               x: player.x + Math.cos(a) * CENTURY_RADIUS,
@@ -3434,7 +3482,7 @@ if (ds && ds.active && ds.level > 0) {
     }
 
     // 2% of all damage back onto you
-    const selfDmg = totalDealt * 0.005;
+    const selfDmg = totalDealt * 0.001;
     player.health -= selfDmg;
     spawnCombatText(player.x, player.y, `-${Math.round(selfDmg)}`, 'purple');
   }
