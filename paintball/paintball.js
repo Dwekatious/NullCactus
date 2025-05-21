@@ -692,7 +692,7 @@ cleanStartBtn.addEventListener('click', () => {
       const id = SLOT_MAP.default[i]; // [1,2,3,4]
       slotEl.dataset.slot = id;
       slotEl.textContent  = abilities[id].name;
-      slotEl.classList.remove('locked');
+      slotEl.classList.remove('locked', 'unlocked', 'ability-active');
       if (abilities[id].level === 0 && player.level >= abilities[id].unlockLevel) {
         abilities[id].level = 1;
       }
@@ -737,7 +737,7 @@ else if (playerClass === 'sniper') {
     const abilityId = SLOT_MAP.sniper[i];
     slotEl.dataset.slot = abilityId;
     slotEl.textContent  = abilities[abilityId].name;
-    slotEl.classList.remove('locked');
+    slotEl.classList.remove('locked', 'unlocked', 'ability-active');
     // unlock immediately
   
     if (abilities[abilityId].level === 0) abilities[abilityId].level = 1;
@@ -776,7 +776,7 @@ else if (playerClass === 'medic') {
     const aid = SLOT_MAP.medic[i];
     slotEl.dataset.slot = aid;
     slotEl.textContent  = abilities[aid].name;
-    slotEl.classList.remove('locked');
+    slotEl.classList.remove('locked', 'unlocked', 'ability-active');
     if (abilities[aid].level === 0) abilities[aid].level = 1;
   });
 
@@ -826,7 +826,6 @@ document.addEventListener('keydown', e => {
 
     // when un-pausing, restart the loop
     if (!paused) {
-      requestAnimationFrame(loop);
     }
   }
 });
@@ -848,7 +847,6 @@ document.addEventListener('keydown', e => {
   gameStarted = true;
   scheduleNextSpawn();
   scheduleNextBoss();
-  requestAnimationFrame(loop);
   // ─── UPGRADE HOTKEYS: Z X C V B ────────────────────────────
 document.addEventListener('keydown', e => {
   if (!gameStarted) return;           // only when in‐game
@@ -909,12 +907,33 @@ function spawnBoss(){
 }
 
 
-  function loop() {
-    if (!gameStarted) return;
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
+
+let rafId = null;
+// your main loop, now only one RAF pipeline and proper pause handling
+function loop() {
+  // always re-schedule next frame
+  requestAnimationFrame(loop);
+
+  // don’t start game logic until gameStarted is true
+  if (!gameStarted) return;
+
+  // when paused, skip update/draw
+  if (paused) return;
+
+  update();
+  draw();
+}
+
+// start the loop once at init
+requestAnimationFrame(loop);
+
+// your pause/resume toggle (e.g. on Escape or button)
+function togglePause() {
+  paused = !paused;
+  // show/hide your overlay here if needed
+  guideOverlay.classList.toggle('hidden', !paused);
+}
+
 
   // ─── OBJECT & ENEMY SPAWNING ───────────────────
   function initObjects() {
@@ -2886,19 +2905,24 @@ function renderLeader(){
 
 
   // 2. On game init or level change, unlock slots:
-  function updateAbilitySlots() {
-    document.querySelectorAll('.ability-slot').forEach(slot => {
-      const key = +slot.dataset.slot;
-      const ab  = abilities[key];
-      if (!ab) return;
-      if (player.level >= ab.unlockLevel) {
-        slot.classList.remove('locked');
-        slot.classList.add('unlocked');
-        if (ab.level === 0) ab.level = 1;      // auto‑learn first rank
-      }
-    });
-    refreshSkillArrows();
-  }
+function updateAbilitySlots() {
+  document.querySelectorAll('.ability-slot').forEach(slot => {
+    const key = +slot.dataset.slot;
+    const ab  = abilities[key];
+    if (!ab) return;
+
+    const isUnlocked = player.level >= ab.unlockLevel;
+    // toggle classes explicitly
+    slot.classList.toggle('locked',  !isUnlocked);
+    slot.classList.toggle('unlocked', isUnlocked);
+
+    // auto-learn first rank when unlocked
+    if (isUnlocked && ab.level === 0) {
+      ab.level = 1;
+    }
+  });
+  refreshSkillArrows();
+}
 
   // 3. Hook into EXP gain/level-up
   function addEXP(amount) {
@@ -3851,13 +3875,11 @@ document.addEventListener('keydown', e=>{
   paused = !paused;
   gameStarted = !paused;                 // you already gate the loop with this
   guideOverlay.classList.toggle('hidden', !paused);
-  if (!paused) requestAnimationFrame(loop);
 });
 
 resumeBtn.onclick = () => {
   paused = false; gameStarted = true;
   guideOverlay.classList.add('hidden');
-  requestAnimationFrame(loop);
 };
 
 
