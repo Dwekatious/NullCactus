@@ -66,59 +66,91 @@
     <button id="restartBtn">Restart</button>
   </div>
 
-  <div id="upgradePanel">
-    <div class="panel-header">Upgrades &amp; Weapons</div>
-    <div class="panel-section">
-      <div class="section-title">Stats (Gold: <span id="upGold">0</span>)</div>
-      <button class="upgrade-btn" data-upgrade="health">+20 HP</button>
-      <button class="upgrade-btn" data-upgrade="damage">+5 DMG</button>
-      <button class="upgrade-btn" data-upgrade="magSize">+5 Mag</button>
-      <button class="upgrade-btn" data-upgrade="fireRate">–10% FR</button>
-      <button class="upgrade-btn" data-upgrade="magnet">Magnetic Pull</button>
-    </div>
-
+<!-- Upgrade Panel -->
+<div id="upgradePanel">
+  <div class="panel-header">Upgrades &amp; Stats</div>
+  <div class="panel-subtitle">Gold: <span id="upGold">0</span></div>
+  <div class="panel-section">
+    <button class="upgrade-btn" data-upgrade="health" data-cost="20">
+      <span class="label">+20 HP</span>
+      <span class="cost"></span>
+    </button>
+    <button class="upgrade-btn" data-upgrade="damage" data-cost="5">
+      <span class="label">+5 DMG</span>
+      <span class="cost"></span>
+    </button>
+    <button class="upgrade-btn" data-upgrade="magSize" data-cost="6">
+      <span class="label">+5 Mag</span>
+      <span class="cost"></span>
+    </button>
+    <button class="upgrade-btn" data-upgrade="fireRate" data-cost="10">
+      <span class="label">–10 % FR</span>
+      <span class="cost"></span>
+    </button>
+    <button class="upgrade-btn" data-upgrade="magnet" data-cost="6">
+      <span class="label">Magnetic Pull</span>
+      <span class="cost"></span>
+    </button>
   </div>
-  
-
-<!-- ─── CLASS-SELECTION PANEL (this is a test) ────────────────────────────── -->
-<div id="classPanel">
-    <h1 class="cls-title">Choose Your Class</h1>
-
-    <div class="cls-frame">
-        <div class="cls-item" data-class="tank">
-            <span class="cls-label">Tank</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="assault">
-            <span class="cls-label">Assault</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="sniper">
-            <span class="cls-label">Sniper</span>
-            <div class="cls-icon"></div>
-        </div>
-
-        <div class="cls-item" data-class="medic">
-            <span class="cls-label">Medic</span>
-            <div class="cls-icon"></div>
-        </div>
-    </div>
 </div>
 
 
+<div id="classPanel">
+  <h1 class="cls-title">Choose Your Class</h1>
+
+  <div class="cls-frame">
+    <div class="cls-item"
+         data-class="tank"
+         data-desc="Tank: High HP, low mobility. Absorbs damage and controls the front line.">
+      <span class="cls-label">Tank</span>
+      <div class="cls-icon"></div>
+    </div>
+
+    <div class="cls-item"
+         data-class="assault"
+         data-desc="Assault: Balanced damage and fire-rate. Great for mid-range combat.">
+      <span class="cls-label">Assault</span>
+      <div class="cls-icon"></div>
+    </div>
+
+    <div class="cls-item"
+         data-class="sniper"
+         data-desc="Sniper: One-shot kills at long range. Fragile but deadly from afar.">
+      <span class="cls-label">Sniper</span>
+      <div class="cls-icon"></div>
+    </div>
+
+    <div class="cls-item"
+         data-class="medic"
+         data-desc="Medic: Heals allies and sustains team fights. Lower direct damage.">
+      <span class="cls-label">Medic</span>
+      <div class="cls-icon"></div>
+    </div>
+  </div>
 
   <!-- warning message -->
   <div id="classWarning" class="warning">Please select a class</div>
-
 </div>
 
 
 
+<!-- GUIDE OVERLAY (opens with Esc) -->
+<div id="guideOverlay" class="overlay hidden">
+  <div class="panel">
+    <h2>Guide &amp; Hotkeys</h2>
 
-  <canvas id="game"></canvas>
-  
+    <!-- abilities get generated here by JS -->
+    <div id="guideAbilities"></div>
+
+    <h2>Controls</h2>
+    <ul id="guideHotkeys"></ul>
+
+    <button id="resumeBtn">Resume (Esc)</button>
+  </div>
+</div>
+
+<canvas id="game"></canvas><!-- keep your canvas right after -->
+
 
 
 
