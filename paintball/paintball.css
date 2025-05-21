@@ -5,12 +5,89 @@
   box-sizing: border-box;
 }
 
+.ability-slot {
+  position: relative;               /* establish a positioning context */
+  cursor: pointer;
+}
+
+.ability-slot .tooltip {
+  pointer-events: none;             /* let mouse events “pass through” */
+  position: absolute;
+  bottom: 65px;                     /* float it just above the slot */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 1000;
+}
+
+.ability-slot:hover .tooltip {
+  opacity: 1;
+}
+
+.ability-slot .tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.85) transparent transparent transparent;
+}
+
+/* also in paintball.css */
+.cls-item {
+  position: relative;
+  cursor: pointer;
+}
+
+.cls-item::after {
+  content: attr(data-desc);
+  position: absolute;
+  bottom: -50px; /* just above the icon */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.cls-item:hover::after {
+  opacity: 1;
+}
+
+
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 body {
-  overflow: hidden;
-  background: #121418;
+  background-color: #121418; /* game’s default bg */
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg,          rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 50px 50px;    /* grid every 50px */
   color: #fff;
   font-family: Arial, sans-serif;
 }
+
 
 canvas {
   display: block;
@@ -117,17 +194,128 @@ header:hover,
 /* UI Panels */
 #ui,
 #gameOver,
+
+/* ─── UPGRADE / SHOP PANEL ───────────────────────────────── */
 #upgradePanel {
   position: fixed;
-  background: rgba(20, 22, 28, 0.9);
-  padding: 24px 32px;
-  border-radius: 8px;
-  text-align: center;
-  z-index: 55;
-  display: flex;
+  top: 80px;
+  right: 20px;
+  width: 280px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: none; /* show when gameStarted */
   flex-direction: column;
   gap: 12px;
+  z-index: 1000;
 }
+
+/* Panel Title */
+#upgradePanel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #F5A623;
+  text-align: center;
+}
+
+/* Buttons */
+.upgrade-btn,
+.weapon-btn {
+  position: relative;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #FFF;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.3s ease, transform 0.1s ease;
+}
+
+/* Hover glow & lift */
+.upgrade-btn:hover,
+.weapon-btn:hover {
+  background: rgba(255, 166, 35, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(245, 166, 35, 0.4);
+}
+
+/* Active press */
+.upgrade-btn:active,
+.weapon-btn:active {
+  transform: translateY(0) scale(0.98);
+  background: rgba(245, 166, 35, 0.2);
+}
+
+/* Disabled look */
+.upgrade-btn.disabled,
+.weapon-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+
+
+/* Icon for weapons */
+.weapon-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.weapon-btn img {
+  width: 20px;
+  height: 20px;
+  filter: drop-shadow(0 0 2px rgba(255,255,255,0.6));
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+  #upgradePanel {
+    width: 90%;
+    right: 50%;
+    transform: translateX(50%);
+  }
+}
+
+
+/* full-screen veil */
+.overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.85);
+  display:flex; justify-content:center; align-items:center;
+  z-index:999;
+}
+.overlay.hidden{display:none;}
+
+.panel{
+  max-height:80vh; width:min(820px,90%);
+  overflow:auto; padding:30px;
+  background:#111; border-radius:14px;
+  box-shadow:0 0 20px #0006;
+  color:#ddd; font-family:sans-serif;
+}
+.panel h2{margin:0 0 12px; color:#fea400;}
+.panel h3{margin:22px 0 6px; color:#7ec7ff;}
+.panel ul{margin:0 0 12px 20px; padding:0;}
+.panel li{margin:4px 0; line-height:1.45;}
+kbd{
+  background:#222; border:1px solid #555; border-radius:4px;
+  padding:2px 6px; font-size:.9em;
+}
+button#resumeBtn{
+  margin-top:18px; padding:8px 26px;
+  background:#fea400; border:none; border-radius:6px;
+  font-weight:700; cursor:pointer;
+}
+
 
 /* START‐GAME PANEL */
 #ui {
@@ -303,38 +491,88 @@ header:hover,
 
 
 
+/* ── UPGRADE PANEL ───────────────────────────────── */
 #upgradePanel {
+  position: fixed;
   top: 80px;
   right: 20px;
-  width: 260px;
-  display: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  width: 280px;
+  background: rgba(20, 22, 28, 0.95);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   z-index: 1000;
+  color: #ECECEC;
+  font-family: Arial, sans-serif;
 }
 
-.upgrade-btn,
-.weapon-btn {
-  width: 100%;
-  margin: 4px 0;
-  padding: 8px 0;
+/* Header & subtitle */
+.panel-header {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #F5A623;      /* gold accent */
+  margin-bottom: 6px;
+}
+.panel-subtitle {
+  font-size: 1rem;
+  color: #FFF;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+/* Buttons container */
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Upgrade buttons */
+.upgrade-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: #2A2C33;
   border: 1px solid #4A90E2;
-  border-radius: 4px;
-  font-size: .9rem;
-  color: #fff;
+  border-radius: 6px;
+  padding: 10px 12px;
   cursor: pointer;
-  transition: background .2s, transform .1s;
+  transition: background 0.2s, transform 0.1s;
 }
-
-.upgrade-btn:hover,
-.weapon-btn:hover {
+.upgrade-btn:hover {
   background: #4A90E2;
   transform: translateY(-1px);
 }
-
-.upgrade-btn:active,
-.weapon-btn:active {
+.upgrade-btn:active {
   transform: translateY(0);
+}
+
+/* Label on the left */
+.upgrade-btn .label {
+  flex: 1;
+  text-align: left;
+  color: #FFF;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Cost badge on the right */
+.upgrade-btn .cost {
+  background: #1A73E8;
+  color: #FFF;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+/* Disabled state (when you’re out of gold) */
+.upgrade-btn.disabled,
+.upgrade-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Late phase background */
@@ -356,6 +594,63 @@ body.late-phase {
 a {
   text-decoration: none;
 }
+
+
+#pauseOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+}
+
+.pause-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.pause-icon {
+  width: 64px;
+  height: 64px;
+  fill: #0ff;
+  /* neon glow */
+  filter:
+    drop-shadow(0 0 2px #0ff)
+    drop-shadow(0 0 4px #0ff)
+    drop-shadow(0 0 6px #0ff);
+  animation: pulse 1.5s infinite cubic-bezier(.5,0,.5,1);
+}
+
+.pause-text {
+  color: #0ff;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 48px;
+  font-weight: bold;
+  /* reduced neon glow */
+  text-shadow:
+    0 0 2px #0ff,
+    0 0 4px #0ff;
+}
+
+/* same as before */
+@keyframes pulse {
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.2); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+
 
 
 /* ─── EXP & ABILITY PANEL ───────────────────────────────────── */
