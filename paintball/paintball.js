@@ -6,7 +6,7 @@ const SLOT_MAP = {
   default: [1, 2, 3, 4],   // keys 1–4 → abilities[1…4]
   assault: [5, 6, 7, 8],   // keys 1–4 → abilities[5…8]
   sniper:   [9, 10, 11, 12],   // ← added
-  medic:   [13, 14, 15, 16],
+  warlock:   [13, 14, 15, 16],
   // add more classes here if needed
 };
 
@@ -41,7 +41,7 @@ const ABILITY_DESCRIPTIONS = {
     11: 'Shuricane Trap: Place spinning blade traps that slice anything nearby.',
     12: 'Spotter Drone: Summon a drone that buffs you and harasses foes.'
   },
-  medic: {
+  warlock: {
     13: 'Poison Bomb: Release toxic clouds that damage enemies over time.',
     14: 'Mind Control: Fire projectiles that convert enemies to fight for you.',
     15: 'Drain Soul: Send beams at multiple foes to leech their life and heal you.',
@@ -213,6 +213,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
   };
 
   // oil stuff
+  const OIL_DPS = 10;  
   const OIL_LIFETIME = 10_000;            // ms before disappearing
   const OIL_W        = 280;               // doubled width
   const OIL_H        = 280;                // doubled height
@@ -236,7 +237,7 @@ const classWarning = document.getElementById('classWarning');
 
 /* ─── INSANITY STATE ───────────────────────────── */
 let damageMultiplier = 1;
-const baseSpeed = 4;             // player default
+const baseSpeed = 5;             // player default
 
 let hue          = 0;            // for RGB cycling
 let trails = [];          // {x,y,hue,life}
@@ -467,7 +468,7 @@ function updateClones() {
 
 
 
-    // ─── Medic‐class abilities ────────────────────
+    // ─── warlock‐class abilities ────────────────────
     13: { name: 'Poison Bomb',  unlockLevel: 1, level: 0, maxLevel: 5, active: false },
     14: { name: 'Mind Control', unlockLevel: 3, level: 0, maxLevel: 5, active: false ,lastFire:    0},
     15: { name:'Drain Soul',    unlockLevel:5,  level: 0, maxLevel: 5, active: false, lastSoul:   0     // timer for its 500 ms pulse
@@ -690,6 +691,7 @@ cleanStartBtn.addEventListener('click', () => {
     maxHealth: BASE_PLAYER_HP,
     level: 1
   };
+  player.lastOilHit = 0;       // initialise once
   
   reserve = maxReserve;
   ammo = magSize;
@@ -775,7 +777,7 @@ else if (playerClass === 'sniper') {
 
 
 
-else if (playerClass === 'medic') {
+else if (playerClass === 'warlock') {
   // lock weapon to Drain Life
   currentWeaponKey = 'drainLife';
   currentWeapon    = { ...weapons.drainLife };
@@ -785,14 +787,14 @@ else if (playerClass === 'medic') {
     btn.style.display = btn.dataset.weapon === 'drainLife' ? 'block' : 'none';
   });
 
-  // you can also remap abilities slots here if your medic has its own set…
+  // you can also remap abilities slots here if your warlock has its own set…
   magSize = Infinity;  // unlimited “ammo”
   ammo    = magSize;
   updateUpgradeButtons();
 
-    // remap ability-slots to Medic’s 13–16
+    // remap ability-slots to warlock’s 13–16
   document.querySelectorAll('.ability-slot').forEach((slotEl,i) => {
-    const aid = SLOT_MAP.medic[i];
+    const aid = SLOT_MAP.warlock[i];
     slotEl.dataset.slot = aid;
     slotEl.textContent  = abilities[aid].name;
     slotEl.classList.remove('locked', 'unlocked', 'ability-active');
@@ -1110,8 +1112,8 @@ function update() {
 function shoot() {
   const now = Date.now();
 
-  // ─── Medic: Life Drain ─────────────────────────
-  if (playerClass === 'medic') {
+  // ─── warlock: Life Drain ─────────────────────────
+  if (playerClass === 'warlock') {
     if (now - (player.lastShot || 0) < currentWeapon.fireRate) return;
     player.lastShot = now;
 
@@ -1240,16 +1242,17 @@ function shoot() {
 /* ─── PURGATORY: flying spikes ─────────── */
 function spawnFlyingInsanity(){
   const ang = Math.random()*Math.PI*2;
+  const SPEED = 4.5;            //  ⇦  halve the speed (was 9)
   flyIns.push({
     x: player.x + Math.cos(ang)*1200,
     y: player.y + Math.sin(ang)*1200,
-    vx: -Math.cos(ang)*9,
-    vy: -Math.sin(ang)*9,
-    life: 400          // frames
+    vx: -Math.cos(ang)*SPEED,
+    vy: -Math.sin(ang)*SPEED,
+    life: 400
   });
 }
 
-/* ─── ABYSS: blocking pillars ──────────── */
+/* ─── oil puddles ──────────── */
   function spawnOilPuddle() {
     if (oilPuddles.length >= 5) return;    // ← never more than 5 puddles
     const ang  = player.angle + (Math.random() - 0.5) * 0.8;
@@ -1673,6 +1676,16 @@ for (let i = scourgeArmy.length - 1; i >= 0; i--) {
   // oil puddle cuts speed in half
     player.speed = inOil ? base * 0.5 : base;
 
+  /* ---------- oil-damage every 1 s ---------- */
+  if (inOil) {
+    const now = Date.now();
+    if (now - player.lastOilHit >= 1000) {      // 1 second gap
+      player.health -= OIL_DPS;
+      spawnCombatText(player.x, player.y, `-${OIL_DPS}`, 'olive');
+      player.lastOilHit = now;
+    }
+  }
+
     /* ---------- spotter-drone speed buff ---------- */
     if (player.speedBuffUntil && Date.now() < player.speedBuffUntil) {
       player.speed *= (player.speedBuffMult || 1);
@@ -2006,7 +2019,7 @@ enemies.forEach(e => {
   /* move + collide flying spikes */
   flyIns.forEach((s,i)=>{
     s.x+=s.vx; s.y+=s.vy; s.life--;
-    if(dist(s.x,s.y,player.x,player.y)<30){ player.health-=40; flyIns.splice(i,1); }
+    if(dist(s.x,s.y,player.x,player.y)<30){ player.health-=20; flyIns.splice(i,1); }
     if(s.life<=0)flyIns.splice(i,1);
   });
 
@@ -3601,7 +3614,7 @@ if (ds && ds.active && ds.level > 0) {
     // compute per‐level parameters
     const lvl        = ds.level;
     const multiplier = 5 + (lvl - 1) * ( (10 - 5) / 4 );    // 5× → 10×
-    const maxTargets = 10 + (lvl - 1) * 10;                // 10 → 50
+    const maxTargets = 10 + (lvl - 1) * 3;                // 10 → 50
     const dmgPerHit  = currentWeapon.damage * multiplier * damageMultiplier;
 
     // pick up to maxTargets closest
@@ -3932,30 +3945,34 @@ function attemptUpgrade(abilityId, arrowEl) {
   return Math.hypot(a.x - b.x, a.y - b.y) < ra + rb;
   }
 
-  function spawnOilPuddle() {
-  let tries = 0;
-  do {
-    const ang  = player.angle + (Math.random() - 0.5) * 0.8; // ±23°
-    const dist = 260 + Math.random() * 120;                 // 260–380px ahead
-    const x    = player.x + Math.cos(ang) * dist;
-    const y    = player.y + Math.sin(ang) * dist;
+function spawnOilPuddle () {
+  /* 50 % chance in front, 50 % directly behind */
+  const isForward = Math.random() < 0.5;
 
-    const candidate = {
-      x, y,
-      w:   OIL_W,
-      h:   OIL_H,
-      rot: ang,
-      born: Date.now()
-    };
+  /* ±23° random spread on either heading                   */
+  const baseAng   = player.angle + (isForward ? 0 : Math.PI);
+  const ang       = baseAng + (Math.random() - 0.5) * 0.8;
 
-    // if it doesn’t overlap existing puddles, we’re good
-    if (!oilPuddles.some(o => rectOverlap(candidate, o))) {
-      oilPuddles.push(candidate);
-      break;
-    }
-    tries++;
-  } while (tries < 10);
+  /* 260–380 px away from player                            */
+  const dist      = 260 + Math.random() * 120;
+
+  const candidate = {
+    x   : player.x + Math.cos(ang) * dist,
+    y   : player.y + Math.sin(ang) * dist,
+    w   : OIL_W,
+    h   : OIL_H,
+    rot : ang,
+    born: Date.now(),
+
+    /* NEW: damage bookkeeping */
+    lastTick: Date.now()
+  };
+
+  /* don’t overlap existing puddles                         */
+  if (!oilPuddles.some(o => rectOverlap(candidate, o))) {
+    oilPuddles.push(candidate);
   }
+}
 
 
 
