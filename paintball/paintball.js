@@ -10,10 +10,14 @@ const SLOT_MAP = {
   // add more classes here if needed
 };
 
+
+
 // ─── CUSTOMIZABLE PIERCING‐SHOT CONFIG ───────────────────────
 const PIERCE_SHOT_SIZE       = 24;  // ⬅ adjust this to scale both arrow & trail thickness
 const PIERCE_TRAIL_LENGTH    = 12;  // ⬅ how many “segments” long the fading tail is
-
+let sniperTrails = []; 
+let pierceTrails  = [];      // ← NEW  trail-spark pool
+let pierceHue     = 0;       // ← NEW  rolling 0-359 hue
 
 score = 0;
 gold = 0;
@@ -72,7 +76,7 @@ const DRONE_MOVE_INTERVAL  = 1000;    // pick a new point every 0.5s
 const DRONE_MOVE_SPEED     = 2;      // px/frame toward target
 const DRONE_BOB_FREQ       = 200;    // ms for bobbing
 const DRONE_BOB_AMP        = 5;      // px amplitude
-const DRONE_EFFECT_INTERVAL= 10000;   // ms between random effects
+const DRONE_EFFECT_INTERVAL= 5_000;   // ms between random effects
 const DRONE_FORCEFIELD_BASE = 2000;   // 2 s at level 1
 const DRONE_FORCEFIELD_PER_LVL = 500; // +0.5 s per extra level
 
@@ -1146,29 +1150,22 @@ function shoot() {
     const pierceActive =
       abilities[9] && abilities[9].active && abilities[9].level > 0;
 
-    if (pierceActive) {
-      // ► special arrow that pierces
-      piercingShots.push({
-        x:  player.x,
-        y:  player.y,
-        ang: player.angle,
-                spd: 20,
-        size: PIERCE_SHOT_SIZE,
-        damage: currentWeapon.damage * damageMultiplier,
-        remaining: Math.max(1, player.level),
-        path: []
-      });
-    } else {
-      // ► normal sniper round (little square)
+      // 1) always fire a normal sniper round
+      // ── scale pierce: +1 extra enemy every 3 levels ──
+      const pierceLimit = player.level;
+
       bullets.push({
-       x:  player.x,
-        y:  player.y,
-        ang: player.angle,
-        spd: 20,
-       size: 8,            // whatever your default is
-        damage: currentWeapon.damage * damageMultiplier
+        x:      player.x,
+        y:      player.y,
+        ang:    player.angle,
+        spd:    20,
+        size:   10,                             // cosmetic
+        damage: currentWeapon.damage * damageMultiplier,
+        type:   'sniper',                       // tag for draw/collision
+        pierceRemaining: pierceLimit -1           // ← scaled value
       });
-    }
+
+
 
     /*  ↓↓↓ same bookkeeping every gun uses ↓↓↓ */
     ammo--;
@@ -1674,7 +1671,18 @@ for (let i = scourgeArmy.length - 1; i >= 0; i--) {
   // baseSpeed ×2 if Insanity is active, otherwise baseSpeed
   const base     = baseSpeed * (abilities[2].active ? 2 : 1);
   // oil puddle cuts speed in half
-  player.speed  = inOil ? base * 0.5 : base;
+    player.speed = inOil ? base * 0.5 : base;
+
+    /* ---------- spotter-drone speed buff ---------- */
+    if (player.speedBuffUntil && Date.now() < player.speedBuffUntil) {
+      player.speed *= (player.speedBuffMult || 1);
+    } else {
+      player.speedBuffMult = 1;               // reset when buff ends
+    }
+
+  
+
+  
 
   // ─── PLAYER MOVEMENT ──────────────────────────────────
   if (keys['w']) player.y -= player.speed;
@@ -1774,7 +1782,20 @@ for (let i = bullets.length - 1; i >= 0; i--) {
   // 3) Move bullet
   b.x += Math.cos(b.ang) * b.spd;
   b.y += Math.sin(b.ang) * b.spd;
-
+  // • trail for sniper darts
+  if (b.type === 'sniper') {
+    sniperTrails.push({ x: b.x, y: b.y, life: 0, max: 20 });
+  }
+    
+  // ── add this block ───────────────────────────────
+  if (b.type === 'sniper') {
+    sniperTrails.push({
+      x: b.x,
+      y: b.y,
+      life: 0,          // counts frames
+      max: 20           // how long the spark stays
+    });
+  }
   // 4) Despawn off-map
   if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
     bullets.splice(i, 1);
@@ -1797,9 +1818,16 @@ for (let i = bullets.length - 1; i >= 0; i--) {
     }
   }
   if (hitSomething) {
-    bullets.splice(i, 1);
-    continue;
+    if (b.type === 'sniper' && b.pierceRemaining > 0) {
+      // sniper round keeps flying
+      b.pierceRemaining--;      // consume one pierce “charge”
+    } else {
+      // any other bullet (or sniper with no charges) disappears
+      bullets.splice(i, 1);
+      continue;                 // done with this bullet
+    }
   }
+
 
   // 6) Didn’t hit an enemy? try to hit a scourge ally
   for (let j = scourgeArmy.length - 1; j >= 0; j--) {
@@ -2074,6 +2102,14 @@ for (let i = grenades.length - 1; i >= 0; i--) {
   // move
   b.x += Math.cos(b.ang) * b.spd;
   b.y += Math.sin(b.ang) * b.spd;
+  // RGB spark
+  pierceTrails.push({
+    x:   b.x,
+    y:   b.y,
+    hue: b.hue,
+    life: 0,
+    max: 25
+  });
 
   // despawn off-map
   if (b.x < 0 || b.x > mapSize || b.y < 0 || b.y > mapSize) {
@@ -2139,6 +2175,7 @@ for (let i = grenades.length - 1; i >= 0; i--) {
   function draw() {
     if (!player) return;
     const now = Date.now();
+    
 
 
     // ─── BACKGROUND & GRID ─────────────────────────────
@@ -2429,6 +2466,7 @@ mindControlled.forEach(ally => {
       ctx.fill();
     });
 
+    
 
       // ─── DRAW POISON PUDDLES ────────────────────────
   poisonPuddles.forEach(p => {
@@ -2455,17 +2493,149 @@ mindControlled.forEach(ally => {
     ctx.fill();
     ctx.restore();
   });
+  // ───────────────────── sniper spark trail ─────────────────────
+  sniperTrails.forEach((t, i) => {
+    t.life++;
+    const alpha = 1 - t.life / t.max;
+    if (alpha <= 0) { sniperTrails.splice(i, 1); return; }
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(t.x - viewX, t.y - viewY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+  // ───────── pierce-arrow RGB trail ─────────
+pierceTrails.forEach((t, i) => {
+  t.life++;
+  const alpha = 1 - t.life / t.max;
+  if (alpha <= 0) { pierceTrails.splice(i, 1); return; }
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.fillStyle   = `hsl(${t.hue}, 100%, 60%)`;
+  ctx.beginPath();
+  ctx.arc(t.x - viewX, t.y - viewY, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+});
 
 
-    // ─── PLAYER BULLETS ──────────────────────────────────
+
+  // ─── 1) DRAW BULLETS (sniper gets custom sprite) ─────────────
+  bullets.forEach(b => {
+
+    /* sniper “plasma dart” */
+    if (b.type === 'sniper') {
+      ctx.save();
+      ctx.translate(b.x - viewX, b.y - viewY);
+      ctx.rotate(b.ang);
+
+      // cyan core
+      ctx.fillStyle = '#00E5FF';
+      ctx.fillRect(-14, -3, 28, 6);
+
+      // white halo
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.strokeRect(-14, -3, 28, 6);
+
+      // arrow head
+      ctx.beginPath();
+      ctx.moveTo(14, -6);
+      ctx.lineTo(22, 0);
+      ctx.lineTo(14, 6);
+      ctx.closePath();
+      ctx.fillStyle = '#00FFFF';
+      ctx.fill();
+
+      ctx.restore();
+      return;                 // skip generic bullet paint
+    }
+
+    /* generic bullet */
+    ctx.save();
+    ctx.translate(b.x - viewX, b.y - viewY);
+    ctx.rotate(b.ang);
     ctx.fillStyle = '#F5A623';
-    bullets.forEach(b => {
-      ctx.fillRect(
-        b.x - viewX - b.size/2,
-        b.y - viewY - b.size/2,
-        b.size, b.size
-      );
-    });
+    ctx.fillRect(-b.size/2, -b.size/2, b.size, b.size);
+    ctx.restore();
+  });
+;
+// ─── PIERCING SHOTS (RGB arrows, size-scalable) ───────────────
+piercingShots.forEach(b => {
+  ctx.save();
+  ctx.translate(b.x - viewX, b.y - viewY);
+  ctx.rotate(b.ang);
+
+  /* scale factor: 10 was the old base size */
+  const sf     = b.size / 10;      // 1 → old size
+  const shaftL = 30 * sf;          // shaft length before head
+  const shaftH =  2 * sf;          // half-height (thinner)
+  const headL  = 10 * sf;          // arrow-head length
+  const headH  =  6 * sf;          // arrow-head half-height
+  const finL   =  6 * sf;          // fin length
+  const finH   =  4 * sf;          // fin half-height
+
+  /* 1) shaft */
+  ctx.fillStyle = `hsl(${b.hue},100%,55%)`;
+  ctx.fillRect(-shaftL, -shaftH, shaftL, shaftH*2);
+
+  /* 2) arrow head */
+  ctx.beginPath();
+  ctx.moveTo( 0,        -headH);
+  ctx.lineTo( headL,      0);
+  ctx.lineTo( 0,         headH);
+  ctx.closePath();
+  ctx.fillStyle = `hsl(${(b.hue + 40) % 360},100%,60%)`;
+  ctx.fill();
+
+  /* 3) fletching fins (left & right) */
+  ctx.beginPath();
+  ctx.moveTo(-shaftL,            -shaftH);   // base of shaft, top
+  ctx.lineTo(-shaftL - finL,     -finH);     // fin tip upper
+  ctx.lineTo(-shaftL,            0);         // rejoin shaft mid
+  ctx.closePath();
+
+  ctx.moveTo(-shaftL,             shaftH);   // base of shaft, bottom
+  ctx.lineTo(-shaftL - finL,      finH);     // fin tip lower
+  ctx.lineTo(-shaftL,             0);        // rejoin shaft mid
+  ctx.closePath();
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+
+  /* outline (optional but keeps crisp look) */
+  ctx.lineWidth   = 2 * sf;
+  ctx.strokeStyle = '#FFFFFF';
+  // outline shaft
+  ctx.strokeRect(-shaftL, -shaftH, shaftL, shaftH*2);
+  // outline head
+  ctx.beginPath();
+  ctx.moveTo( 0,        -headH);
+  ctx.lineTo( headL,      0);
+  ctx.lineTo( 0,         headH);
+  ctx.closePath();
+  ctx.stroke();
+  // outline fins
+  ctx.beginPath();
+  ctx.moveTo(-shaftL,            -shaftH);
+  ctx.lineTo(-shaftL - finL,     -finH);
+  ctx.lineTo(-shaftL,             0);
+  ctx.moveTo(-shaftL,             shaftH);
+  ctx.lineTo(-shaftL - finL,      finH);
+  ctx.lineTo(-shaftL,             0);
+  ctx.stroke();
+
+  ctx.restore();
+});
+
+
+
+
+
   // ─── DRAW MIND-CONTROLLED ALLIES ────────────────────────
   mindControlled.forEach(ally => {
     const ex = ally.x - viewX;
@@ -2780,31 +2950,9 @@ shuriTraps.forEach(tr => {
       ctx.restore();
     });
 
-  // render each piercing shot with a glowing tracer
-  piercingShots.forEach(b => {
-    const px = b.x - viewX, py = b.y - viewY;
 
-    // tail
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
-    ctx.lineWidth   = 4;
-    ctx.beginPath();
-    ctx.moveTo(
-      px - Math.cos(b.ang) * 12,
-      py - Math.sin(b.ang) * 12
-    );
-    ctx.lineTo(px, py);
-    ctx.stroke();
-    ctx.restore();
 
-    // head
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(b.ang);
-    ctx.fillStyle = '#ff0';
-    ctx.fillRect(-b.size/2, -b.size/4, b.size, b.size/2);
-    ctx.restore();
-  });
+
 
 
 
@@ -3070,7 +3218,7 @@ function updateAbilities() {
     } else {
       homingDrainTimer += 16;
       if (homingDrainTimer >= 1000) {
-        player.health    = Math.max(1, player.health - 1);
+        player.health    = Math.max(1, player.health - 5);
         homingDrainTimer = 0;
       }
     }
@@ -3209,16 +3357,19 @@ if (pb && pb.active && pb.level > 0) {
 
     // spawn a new piercing bullet at player pos+angle
     piercingShots.push({
-      x: player.x,
-      y: player.y,
+      x:  player.x,
+      y:  player.y,
       ang: player.angle,
       spd: 16,
-      size: 8,
+      size: 20,
       remaining: Math.round(
         PIERCE_BASE_COUNT +
         (pb.level - 1) * (PIERCE_MAX_COUNT - PIERCE_BASE_COUNT) / 4
-      )
+      ),
+      hue: pierceHue             // colour for this arrow
     });
+    pierceHue = (pierceHue + 20) % 360;   // next arrow shifts hue
+
   }
 }
 
@@ -3336,8 +3487,8 @@ if (sd && sd.active && sd.level > 0) {
 
     switch (pick) {
       case 'speed':
-        player.speedBuffUntil = now + 10000;
-        player.speed *= 1 + 0.1 * lvl;
+        player.speedBuffUntil = now + 10000;            // 10 s duration
+        player.speedBuffMult  = 1 + 0.5 * lvl; 
         break;
 
       case 'heal':
