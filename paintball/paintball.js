@@ -225,7 +225,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
     /* ─── PLAYER CONFIG ───────────────────────────── */
-  const BASE_PLAYER_HP = 10000000;   // <— add this with the other globals
+  const BASE_PLAYER_HP = 100;   // <— add this with the other globals
   let lastBlockerTime     = 0;
   let lastEruptionTime    = 0;
   let lastDifficultyTime  = 0;
