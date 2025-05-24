@@ -1,5 +1,39 @@
 // paintball.js
-+document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ─── BACKGROUND MUSIC PLAYLIST ───────────────────
+const bgTracks = [
+  'sounds/track_1.mp3',
+  'sounds/track_2.mp3',
+  'sounds/track_3.mp3'
+];
+
+// paintball.js
+
+// ─── MENU MUSIC ───────────────────────────────────────────
+const menuTracks = [
+  'sounds/menu_1.mp3',
+  'sounds/menu_2.mp3'
+];
+let menuIndex = 0;
+const menuAudio = new Audio();
+menuAudio.volume = 0.4;
+menuAudio.src    = menuTracks[menuIndex];
+menuAudio.loop   = false;
+menuAudio.addEventListener('ended', () => {
+  menuIndex = (menuIndex + 1) % menuTracks.length;
+  menuAudio.src = menuTracks[menuIndex];
+  menuAudio.play();
+});
+// ─── UNLOCK & PLAY MENU MUSIC ON FIRST CLICK ─────────────────
+const menuOverlay = document.getElementById('preGameExtras');
+function unlockMenuMusic() {
+  menuAudio.play().catch(err => console.warn('menuAudio blocked:', err));
+  menuOverlay.removeEventListener('click', unlockMenuMusic);
+}
+menuOverlay.addEventListener('click', unlockMenuMusic);
+
+
 
 // 1) Define a slot→ability lookup per class
 const SLOT_MAP = {
@@ -54,7 +88,7 @@ const ABILITY_DESCRIPTIONS = {
 let scourgeArmy = [];
 const SCOURGE_BASE_COUNT  = 5;
 const SCOURGE_MAX_COUNT   = 10;
-const SCOURGE_MELEE_DAMAGE = 2; // dial this down if it still feels too strong
+const SCOURGE_MELEE_DAMAGE = 10; // dial this down if it still feels too strong
 
 // top of paintball.js
 let combatTexts = [];
@@ -191,7 +225,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
   let maxReserve          = 90;        // The maximum ammo you can carry in reserve
   let spawnStartTime;                  // Timestamp when enemy‐spawning began
     /* ─── PLAYER CONFIG ───────────────────────────── */
-  const BASE_PLAYER_HP = 100;   // <— add this with the other globals
+  const BASE_PLAYER_HP = 10000000;   // <— add this with the other globals
   let lastBlockerTime     = 0;
   let lastEruptionTime    = 0;
   let lastDifficultyTime  = 0;
@@ -231,7 +265,7 @@ const POISON_SLOW_FACTOR = 0.05;  // enemies retain 5% of their speed
   const bladeOrbitCfg = {
   radius : 130,      // distance from player  (px)
   speed  : 0.08,    // rotation speed        (radians / frame)
-  baseDamage : 1       // damage per touch
+  baseDamage : 10       // damage per touch
 };
 const classWarning = document.getElementById('classWarning');
 
@@ -349,7 +383,7 @@ if (upgradePanel) {
 
     gold -= up.cost;
     up.apply();
-    up.cost = Math.ceil(up.cost * 1.5);
+    up.cost = Math.ceil(up.cost * 1.2); // increase cost by 20%
 
     refreshPanel();
     updateUpgradeButtons();
@@ -365,11 +399,11 @@ function spawnBackupClones(level) {
       y: player.y,
       targetPos: null,
       speed: 2 + Math.random()*2,  // tweak walking speed
-      fireRate: weapons.buckshot.fireRate * 2,
+      fireRate: weapons.buckshot.fireRate / (level*level), // faster at higher levels
       lastShot: 0,
       shotsSinceTargetChange: 0,
       target: null,
-      dmgMul: 1 + 0.25 * (level - 1)
+      dmgMul: 1 + (level)
     });
   }
 }
@@ -434,7 +468,7 @@ function updateClones() {
 
 
     const weapons = {
-    buckshot:{ cost:10, damage:5, bullets:5, spread:0.5,  reload:800,  fireRate:300 },
+    buckshot:{ cost:10, damage:5, bullets:10, spread:0.7,  reload:800,  fireRate:300 },
     minigun: { cost:15, damage:25,  bullets:1, spread:0.15, reload:1000, fireRate:75 },
     sniper:  { cost:30, damage:1000,bullets:1, spread:0,    reload:2000, fireRate:1000 },
     drainLife:  { cost:25, damage:DRAIN_BASE_DAMAGE, bullets:1, spread:0, reload:0, fireRate:DRAIN_BASE_FIRE_RATE }
@@ -653,6 +687,9 @@ cleanStartBtn.addEventListener('click', () => {
     return;
   }
 
+    // ─── STOP MENU MUSIC ──────────────────────────
+  menuAudio.pause();
+  menuAudio.currentTime = 0;
   playerClass = chosen.dataset.class;  // "tank", "assault", …
   classPanel.classList.add('hidden');
   initGame();                          // initGame will read playerClass
@@ -676,7 +713,27 @@ cleanStartBtn.addEventListener('click', () => {
 
 
  function initGame() {
+  
 
+  let bgIndex = 0;
+  const bgAudio = new Audio();
+  bgAudio.volume = 0.3;       // tweak to taste
+  bgAudio.src    = bgTracks[bgIndex];
+  bgAudio.play().catch(() => { /* user gesture needed */ });
+
+  // when one track ends, advance (and wrap) and play the next
+  bgAudio.addEventListener('ended', () => {
+    bgIndex = (bgIndex + 1) % bgTracks.length;
+    bgAudio.src = bgTracks[bgIndex];
+    bgAudio.play();
+  });
+  // optional: start/pause toggle
+  window.addEventListener('keydown', e => {
+    if (e.key === 'm') {
+      if (bgAudio.paused) bgAudio.play();
+      else                bgAudio.pause();
+    }
+  });
 
   document.getElementById('preGameExtras').style.display = 'none';
 
@@ -721,8 +778,8 @@ cleanStartBtn.addEventListener('click', () => {
     abilities[2].level       = Math.max(1, abilities[2].level);
     upgradePanel.querySelectorAll('[data-weapon]').forEach(btn => btn.style.display = 'none');
 
-    player.health = 1000;
-    player.maxHealth = 1000;
+    player.health = BASE_PLAYER_HP *10;
+    player.maxHealth = BASE_PLAYER_HP *10;
   }
 else if (playerClass === 'assault') {
   currentWeaponKey = 'minigun';
